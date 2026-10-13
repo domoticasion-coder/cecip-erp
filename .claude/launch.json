@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "cecip-demo", "runtimeExecutable": "npm", "runtimeArgs": ["run", "demo", "--", "--port", "5174"], "port": 5174 },
+    { "name": "cecip-erp", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 5173 }
+  ]
+}
