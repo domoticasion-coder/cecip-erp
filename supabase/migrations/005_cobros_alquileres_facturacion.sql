@@ -8,7 +8,8 @@
 --   6. Imágenes en comunicados, campañas y eventos
 --   7. Formularios públicos de inscripción a eventos (para no socios)
 --
--- Ejecutar en Supabase > SQL Editor DESPUÉS de 001, 002 y 003. Se ejecuta una sola vez.
+-- Ejecutar en Supabase > SQL Editor DESPUÉS de 001, 002 y 003.
+-- Se puede volver a ejecutar sin problema (por ejemplo si una ejecución anterior quedó a medias).
 -- Después ejecutar 006_padron_2026.sql (importa el Excel "Registro de Asociados 2026").
 -- =============================================================================
 
@@ -17,7 +18,7 @@
 -- 1. PERIODICIDAD DE COBRO
 -- -----------------------------------------------------------------------------
 
-create table public.periodicidades (
+create table if not exists public.periodicidades (
   codigo text primary key check (codigo in ('mensual', 'bimestral', 'trimestral', 'semestral', 'anual')),
   nombre text not null,
   meses int not null check (meses in (1, 2, 3, 6, 12)),
@@ -31,22 +32,23 @@ insert into public.periodicidades (codigo, nombre, meses, descuento, orden) valu
   ('bimestral', 'Bimestral', 2, 0, 2),
   ('trimestral', 'Trimestral', 3, 3, 3),
   ('semestral', 'Semestral', 6, 6, 4),
-  ('anual', 'Anual', 12, 12, 5);
+  ('anual', 'Anual', 12, 12, 5)
+on conflict (codigo) do nothing;
 
 alter table public.socios
-  add column periodicidad text not null default 'mensual' references public.periodicidades(codigo),
-  add column condicion_iva text check (condicion_iva in ('RI', 'Monotributo', 'Exento', 'Consumidor final')),
-  add column emails_extra text, -- otros emails de la empresa (separados por coma)
+  add column if not exists periodicidad text not null default 'mensual' references public.periodicidades(codigo),
+  add column if not exists condicion_iva text check (condicion_iva in ('RI', 'Monotributo', 'Exento', 'Consumidor final')),
+  add column if not exists emails_extra text, -- otros emails de la empresa (separados por coma)
   -- Marca de seguimiento (los colores del Excel de Tesorería)
-  add column seguimiento text check (seguimiento in ('posible_baja', 'deuda_reciente', 'deuda_condonada', 'cobrador')),
-  add column facturar_auto boolean not null default true; -- emitir factura al cobrarle (si la facturación automática está activa)
+  add column if not exists seguimiento text check (seguimiento in ('posible_baja', 'deuda_reciente', 'deuda_condonada', 'cobrador')),
+  add column if not exists facturar_auto boolean not null default true; -- emitir factura al cobrarle (si la facturación automática está activa)
 
 -- Cada cuota social cubre uno o varios meses (de periodo a periodo_hasta)
 alter table public.cuotas
-  add column periodo_hasta date,
-  add column meses int not null default 1 check (meses between 1 and 12),
-  add column importada boolean not null default false; -- vino del Excel (no generó movimiento en tesorería)
-update public.cuotas set periodo_hasta = periodo where periodo is not null;
+  add column if not exists periodo_hasta date,
+  add column if not exists meses int not null default 1 check (meses between 1 and 12),
+  add column if not exists importada boolean not null default false; -- vino del Excel (no generó movimiento en tesorería)
+update public.cuotas set periodo_hasta = periodo where periodo is not null and periodo_hasta is null;
 
 -- -----------------------------------------------------------------------------
 -- 2. CATEGORÍAS
@@ -240,8 +242,10 @@ left join lateral (
 ) d on true;
 
 alter table public.periodicidades enable row level security;
+drop policy if exists per_select on public.periodicidades;
 create policy per_select on public.periodicidades for select to authenticated
   using (is_staff() or my_socio_id() is not null);
+drop policy if exists per_write on public.periodicidades;
 create policy per_write on public.periodicidades for all to authenticated
   using (has_role(array[]::text[])) with check (has_role(array[]::text[]));
 
@@ -250,7 +254,7 @@ create policy per_write on public.periodicidades for all to authenticated
 -- 4. ALQUILERES
 -- -----------------------------------------------------------------------------
 
-create table public.inmuebles (
+create table if not exists public.inmuebles (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   direccion text,
@@ -260,7 +264,7 @@ create table public.inmuebles (
   created_at timestamptz not null default now()
 );
 
-create table public.alquiler_contratos (
+create table if not exists public.alquiler_contratos (
   id uuid primary key default gen_random_uuid(),
   inmueble_id uuid not null references public.inmuebles(id) on delete restrict,
   inquilino_nombre text not null,
@@ -284,9 +288,9 @@ create table public.alquiler_contratos (
   observaciones text,
   created_at timestamptz not null default now()
 );
-create unique index alquiler_contrato_vigente on public.alquiler_contratos(inmueble_id) where estado = 'vigente';
+create unique index if not exists alquiler_contrato_vigente on public.alquiler_contratos(inmueble_id) where estado = 'vigente';
 
-create table public.alquiler_cargos (
+create table if not exists public.alquiler_cargos (
   id uuid primary key default gen_random_uuid(),
   contrato_id uuid not null references public.alquiler_contratos(id) on delete restrict,
   tipo text not null default 'alquiler' check (tipo in ('alquiler', 'expensas', 'servicios', 'otro')),
@@ -304,13 +308,13 @@ create table public.alquiler_cargos (
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
-create unique index alquiler_cargo_mes on public.alquiler_cargos(contrato_id, periodo)
+create unique index if not exists alquiler_cargo_mes on public.alquiler_cargos(contrato_id, periodo)
   where tipo = 'alquiler' and estado <> 'anulada';
-create index alquiler_cargos_estado_idx on public.alquiler_cargos(estado, vencimiento);
+create index if not exists alquiler_cargos_estado_idx on public.alquiler_cargos(estado, vencimiento);
 
-alter table public.movimientos add column alquiler_cargo_id uuid references public.alquiler_cargos(id) on delete set null;
+alter table public.movimientos add column if not exists alquiler_cargo_id uuid references public.alquiler_cargos(id) on delete set null;
 
-create view public.alquiler_cargos_detalle with (security_invoker = true) as
+create or replace view public.alquiler_cargos_detalle with (security_invoker = true) as
 select
   c.*,
   k.inmueble_id,
@@ -410,18 +414,26 @@ revoke execute on function public.anular_pago_alquiler(uuid) from public, anon;
 alter table public.inmuebles enable row level security;
 alter table public.alquiler_contratos enable row level security;
 alter table public.alquiler_cargos enable row level security;
+drop policy if exists inm_select on public.inmuebles;
 create policy inm_select on public.inmuebles for select to authenticated using (is_staff());
+drop policy if exists inm_write on public.inmuebles;
 create policy inm_write on public.inmuebles for all to authenticated
   using (has_role(array['tesoreria'])) with check (has_role(array['tesoreria']));
+drop policy if exists contr_select on public.alquiler_contratos;
 create policy contr_select on public.alquiler_contratos for select to authenticated using (is_staff());
+drop policy if exists contr_write on public.alquiler_contratos;
 create policy contr_write on public.alquiler_contratos for all to authenticated
   using (has_role(array['tesoreria'])) with check (has_role(array['tesoreria']));
+drop policy if exists cargos_select on public.alquiler_cargos;
 create policy cargos_select on public.alquiler_cargos for select to authenticated using (is_staff());
+drop policy if exists cargos_write on public.alquiler_cargos;
 create policy cargos_write on public.alquiler_cargos for all to authenticated
   using (has_role(array['tesoreria'])) with check (has_role(array['tesoreria']));
 
 -- Los tres inmuebles que alquila el CeCIP (completar nombre y dirección en ERP > Alquileres)
-insert into public.inmuebles (nombre, orden) values ('Inmueble 1', 1), ('Inmueble 2', 2), ('Inmueble 3', 3);
+insert into public.inmuebles (nombre, orden)
+select v.nombre, v.orden from (values ('Inmueble 1', 1), ('Inmueble 2', 2), ('Inmueble 3', 3)) as v(nombre, orden)
+where not exists (select 1 from public.inmuebles);
 
 
 -- -----------------------------------------------------------------------------
@@ -431,13 +443,13 @@ insert into public.inmuebles (nombre, orden) values ('Inmueble 1', 1), ('Inmuebl
 -- -----------------------------------------------------------------------------
 
 alter table public.configuracion
-  add column facturacion_auto boolean not null default false, -- facturar automáticamente cada cobro
-  add column factura_condicion_emisor text not null default 'exento'
+  add column if not exists facturacion_auto boolean not null default false, -- facturar automáticamente cada cobro
+  add column if not exists factura_condicion_emisor text not null default 'exento'
     check (factura_condicion_emisor in ('exento', 'monotributo', 'ri')),
-  add column factura_punto_venta int check (factura_punto_venta is null or factura_punto_venta between 1 and 99998),
-  add column factura_iva_alicuota numeric(5,2) not null default 21;
+  add column if not exists factura_punto_venta int check (factura_punto_venta is null or factura_punto_venta between 1 and 99998),
+  add column if not exists factura_iva_alicuota numeric(5,2) not null default 21;
 
-create table public.facturas (
+create table if not exists public.facturas (
   id uuid primary key default gen_random_uuid(),
   origen text not null default 'manual' check (origen in ('cuota', 'alquiler', 'manual')),
   cuota_id uuid references public.cuotas(id) on delete set null,
@@ -471,10 +483,10 @@ create table public.facturas (
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
-create unique index facturas_cuota_unica on public.facturas(cuota_id) where cuota_id is not null and estado <> 'anulada';
-create unique index facturas_cargo_unica on public.facturas(cargo_id) where cargo_id is not null and estado <> 'anulada';
-create index facturas_estado_idx on public.facturas(estado, created_at desc);
-create index facturas_socio_idx on public.facturas(socio_id);
+create unique index if not exists facturas_cuota_unica on public.facturas(cuota_id) where cuota_id is not null and estado <> 'anulada';
+create unique index if not exists facturas_cargo_unica on public.facturas(cargo_id) where cargo_id is not null and estado <> 'anulada';
+create index if not exists facturas_estado_idx on public.facturas(estado, created_at desc);
+create index if not exists facturas_socio_idx on public.facturas(socio_id);
 
 -- Tipo de comprobante según la condición del CeCIP y la del receptor
 create or replace function public.tipo_factura(p_receptor text) returns text
@@ -561,17 +573,23 @@ begin
 end $$;
 revoke execute on function public.tg_facturar_cobro() from public, anon, authenticated;
 
+drop trigger if exists cuotas_facturar on public.cuotas;
 create trigger cuotas_facturar after update of estado on public.cuotas
   for each row execute function public.tg_facturar_cobro();
+drop trigger if exists alquiler_cargos_facturar on public.alquiler_cargos;
 create trigger alquiler_cargos_facturar after update of estado on public.alquiler_cargos
   for each row execute function public.tg_facturar_cobro();
 
 alter table public.facturas enable row level security;
+drop policy if exists fact_select on public.facturas;
 create policy fact_select on public.facturas for select to authenticated
   using (is_staff() or (estado = 'emitida' and socio_id = my_socio_id() and origen = 'cuota'));
+drop policy if exists fact_insert on public.facturas;
 create policy fact_insert on public.facturas for insert to authenticated with check (has_role(array['tesoreria']));
+drop policy if exists fact_update on public.facturas;
 create policy fact_update on public.facturas for update to authenticated
   using (has_role(array['tesoreria'])) with check (has_role(array['tesoreria']));
+drop policy if exists fact_delete on public.facturas;
 create policy fact_delete on public.facturas for delete to authenticated
   using (has_role(array['tesoreria']) and estado in ('en_cola', 'error'));
 
@@ -585,7 +603,7 @@ create policy fact_delete on public.facturas for delete to authenticated
 
 insert into public.cuentas (nombre, tipo, orden) values ('Banco Santander', 'banco', 5) on conflict (nombre) do nothing;
 
-create table public.banco_movimientos (
+create table if not exists public.banco_movimientos (
   id uuid primary key default gen_random_uuid(),
   banco text not null default 'Santander',
   cuenta_id uuid references public.cuentas(id) on delete set null,
@@ -606,7 +624,7 @@ create table public.banco_movimientos (
   created_at timestamptz not null default now(),
   unique (banco, id_externo)
 );
-create index banco_mov_fecha_idx on public.banco_movimientos(fecha desc);
+create index if not exists banco_mov_fecha_idx on public.banco_movimientos(fecha desc);
 
 -- Concilia un movimiento del banco. Indicar UNA opción: cuota, cargo de alquiler o categoría de tesorería.
 create or replace function public.conciliar_banco(
@@ -658,7 +676,9 @@ end $$;
 revoke execute on function public.conciliar_banco(uuid, uuid, uuid, text, text) from public, anon;
 
 alter table public.banco_movimientos enable row level security;
+drop policy if exists banco_select on public.banco_movimientos;
 create policy banco_select on public.banco_movimientos for select to authenticated using (has_role(array['tesoreria']));
+drop policy if exists banco_write on public.banco_movimientos;
 create policy banco_write on public.banco_movimientos for all to authenticated
   using (has_role(array['tesoreria'])) with check (has_role(array['tesoreria']));
 
@@ -667,10 +687,10 @@ create policy banco_write on public.banco_movimientos for all to authenticated
 -- 7. IMÁGENES EN LA COMUNICACIÓN
 -- -----------------------------------------------------------------------------
 
-alter table public.comunicados add column imagen_url text;
-alter table public.comercia_novedades add column imagen_url text;
-alter table public.wa_campanas add column imagen_url text;
-alter table public.eventos add column imagen_url text;
+alter table public.comunicados add column if not exists imagen_url text;
+alter table public.comercia_novedades add column if not exists imagen_url text;
+alter table public.wa_campanas add column if not exists imagen_url text;
+alter table public.eventos add column if not exists imagen_url text;
 
 -- Bucket público "imagenes" de Supabase Storage (solo el personal puede subir y borrar)
 do $$
@@ -680,6 +700,7 @@ begin
       insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
       values ('imagenes', 'imagenes', true, 5242880, array['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
       on conflict (id) do nothing $q$;
+    perform set_config('cecip.bucket', 'ok', false);
     begin
       execute 'drop policy if exists imagenes_subida on storage.objects';
       execute 'drop policy if exists imagenes_borrado on storage.objects';
@@ -701,18 +722,18 @@ end $$;
 -- -----------------------------------------------------------------------------
 
 alter table public.eventos
-  add column slug text unique,
-  add column formulario_publico boolean not null default false,
+  add column if not exists slug text unique,
+  add column if not exists formulario_publico boolean not null default false,
   -- Preguntas extra del formulario: [{ "id": "p1", "etiqueta": "...", "tipo": "texto"|"opciones"|"si_no", "opciones": [], "requerida": true }]
-  add column preguntas jsonb not null default '[]';
+  add column if not exists preguntas jsonb not null default '[]';
 
 alter table public.inscripciones
-  add column empresa text,
-  add column cuit text,
-  add column es_socio boolean not null default true,
-  add column respuestas jsonb not null default '{}',
-  add column origen text not null default 'portal' check (origen in ('portal', 'erp', 'publico'));
-create unique index inscripciones_email_unico on public.inscripciones(evento_id, lower(asistente_email))
+  add column if not exists empresa text,
+  add column if not exists cuit text,
+  add column if not exists es_socio boolean not null default true,
+  add column if not exists respuestas jsonb not null default '{}',
+  add column if not exists origen text not null default 'portal' check (origen in ('portal', 'erp', 'publico'));
+create unique index if not exists inscripciones_email_unico on public.inscripciones(evento_id, lower(asistente_email))
   where asistente_email is not null and socio_id is null;
 
 create or replace function public.slug_texto(t text) returns text
@@ -727,6 +748,7 @@ begin
   end if;
   return new;
 end $$;
+drop trigger if exists eventos_slug on public.eventos;
 create trigger eventos_slug before insert or update on public.eventos
   for each row execute function public.tg_evento_slug();
 update public.eventos set slug = null where slug is null; -- completa el slug de los eventos existentes
@@ -827,3 +849,15 @@ returns json language sql stable security invoker set search_path = public as $$
     'banco_sin_conciliar', (select count(*) from banco_movimientos where estado = 'nuevo')
   )
 $$;
+
+
+-- -----------------------------------------------------------------------------
+-- Verificación: todo debería decir "ok"
+-- -----------------------------------------------------------------------------
+select 'categorías nuevas' as control, case when (select count(*) from public.categorias where nombre in ('BANCOS','AA','A','B','C','S','JE/ME')) = 7 then 'ok' else 'FALTA' end as estado
+union all select 'periodicidades', case when (select count(*) from public.periodicidades) = 5 then 'ok' else 'FALTA' end
+union all select 'alquileres', case when to_regclass('public.alquiler_cargos') is not null then 'ok' else 'FALTA' end
+union all select 'facturación', case when to_regclass('public.facturas') is not null then 'ok' else 'FALTA' end
+union all select 'banco', case when to_regclass('public.banco_movimientos') is not null then 'ok' else 'FALTA' end
+union all select 'formularios públicos', case when exists (select 1 from pg_proc where proname = 'inscribir_publico') then 'ok' else 'FALTA' end
+union all select 'bucket de imágenes', coalesce(nullif(current_setting('cecip.bucket', true), ''), 'sin storage');
