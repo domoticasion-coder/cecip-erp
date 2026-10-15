@@ -130,6 +130,8 @@ export default defineConfig(({ mode }) => {
   const demo = mode === "demo";
 
   return {
+    // NEXT_PUBLIC_*: nombres que crea la integración Supabase de Vercel (URL y clave pública)
+    envPrefix: ["VITE_", "NEXT_PUBLIC_"],
     plugins: [react(), tailwindcss(), ...(demo ? [demoCopilotGemini()] : [devApi()])],
     resolve: {
       alias: [{ find: /^@backend$/, replacement: path.resolve(__dirname, demo ? "src/demo/backend.ts" : "src/lib/backend.ts") }],
