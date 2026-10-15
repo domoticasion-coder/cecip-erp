@@ -10,6 +10,7 @@ import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, 
 import { useCategorias, useInvalidate } from "../data";
 import { EnviarEmailModal } from "../components/EnviarEmail";
 import { WhatsappCampanas } from "../components/WhatsappCampanas";
+import { ImagenInput } from "../../components/ImagenInput";
 import { useSociosResumen } from "./Socios";
 
 type Tab = "comunicados" | "whatsapp" | "masivo" | "historial";
@@ -81,7 +82,10 @@ function Comunicados() {
                     {c.publicado ? <Badge tone="green">Publicado</Badge> : <Badge>Borrador</Badge>}
                     {c.destacado && <Badge tone="amber">Destacado</Badge>}
                   </div>
-                  <p className="mt-0.5 line-clamp-2 text-sm text-slate-600">{c.cuerpo}</p>
+                  <div className="mt-0.5 flex gap-3">
+                    {c.imagen_url && <img src={c.imagen_url} alt="" className="h-14 w-20 shrink-0 rounded object-cover" />}
+                    <p className="line-clamp-2 text-sm text-slate-600">{c.cuerpo}</p>
+                  </div>
                   <div className="mt-0.5 text-xs text-slate-400">{fechaHora(c.fecha_publicacion || c.created_at)}</div>
                 </div>
                 {puede && (
@@ -104,6 +108,7 @@ function Comunicados() {
         asuntoInicial={emailDe?.titulo || ""}
         cuerpoInicial={emailDe ? `Hola {{nombre}},\n\n${emailDe.cuerpo}` : ""}
         comunicadoId={emailDe?.id}
+        imagenInicial={emailDe?.imagen_url}
       />
     </>
   );
@@ -117,14 +122,15 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
   const [cuerpo, setCuerpo] = useState("");
   const [publicado, setPublicado] = useState(true);
   const [destacado, setDestacado] = useState(false);
+  const [imagen, setImagen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!value) return;
     setError(null);
-    if (value === "nuevo") { setTitulo(""); setCuerpo(""); setPublicado(true); setDestacado(false); }
-    else { setTitulo(value.titulo); setCuerpo(value.cuerpo); setPublicado(value.publicado); setDestacado(value.destacado); }
+    if (value === "nuevo") { setTitulo(""); setCuerpo(""); setPublicado(true); setDestacado(false); setImagen(null); }
+    else { setTitulo(value.titulo); setCuerpo(value.cuerpo); setPublicado(value.publicado); setDestacado(value.destacado); setImagen(value.imagen_url); }
   }, [value]);
 
   async function guardar() {
@@ -132,7 +138,7 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
     setSaving(true);
     const prev = value !== "nuevo" ? value : null;
     const payload = {
-      titulo: titulo.trim(), cuerpo: cuerpo.trim(), publicado, destacado,
+      titulo: titulo.trim(), cuerpo: cuerpo.trim(), publicado, destacado, imagen_url: imagen,
       fecha_publicacion: publicado ? prev?.fecha_publicacion || new Date().toISOString() : null,
     };
     const res = prev
@@ -158,6 +164,7 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
         <Field label="Texto" hint="Los links se muestran clickeables en el portal.">
           <Textarea rows={10} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} />
         </Field>
+        <ImagenInput value={imagen} onChange={setImagen} carpeta="comunicados" hint="Flyer o foto: se muestra en el portal y en el email." />
         <div className="flex gap-6">
           <Checkbox checked={publicado} onChange={setPublicado} label="Publicado en el portal" />
           <Checkbox checked={destacado} onChange={setDestacado} label="Destacado (aparece primero)" />

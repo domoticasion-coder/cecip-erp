@@ -123,7 +123,7 @@ export function HeroComercia({ promo, onSumarme, onVerPromos }: {
 
 export function ConvenioComercia({ promociones, bloques, novedades, urlAdhesion, onPedir }: {
   promociones: PromocionComercia[]; bloques: BloqueConvenio[]; urlAdhesion: string; onPedir: Pedir;
-  novedades: { id: string; titulo: string; cuerpo: string; created_at: string }[];
+  novedades: { id: string; titulo: string; cuerpo: string; imagen_url?: string | null; created_at: string }[];
 }) {
   const de = (t: BloqueConvenio["tipo"]) => bloques.filter((b) => b.tipo === t);
   const partes = de("parte"), ejes = de("eje"), beneficios = de("beneficio"), pasos = de("paso"), preguntas = de("pregunta");
@@ -142,6 +142,7 @@ export function ConvenioComercia({ promociones, bloques, novedades, urlAdhesion,
                 </div>
                 <div className="mt-1 text-lg font-bold text-white">{n.titulo}</div>
                 <p className="mt-1 whitespace-pre-line text-sm text-[#cbd5e1]">{n.cuerpo}</p>
+                {n.imagen_url && <img src={n.imagen_url} alt="" className="mt-3 max-h-80 rounded-xl object-contain" />}
               </div>
             ))}
           </div>

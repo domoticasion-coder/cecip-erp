@@ -2,14 +2,14 @@ import { HttpError, env, getCaller, handle, json, pesos, readJson, requireStaff,
 import { emailLayout, emailValido, sendEmails, textToHtml } from "../_lib/email.js";
 
 /**
- * POST /api/comunicaciones/enviar { socio_ids, asunto, cuerpo, comunicado_id? }
+ * POST /api/comunicaciones/enviar { socio_ids, asunto, cuerpo, comunicado_id?, imagen_url? }
  * Envío masivo de emails. Variables disponibles en asunto y cuerpo: {{nombre}}, {{deuda}}.
  */
 export const POST = handle(async (req) => {
   const caller = await getCaller(req);
   requireStaff(caller, ["atencion", "tesoreria"]);
 
-  const body = await readJson<{ socio_ids?: string[]; asunto?: string; cuerpo?: string; comunicado_id?: string }>(req);
+  const body = await readJson<{ socio_ids?: string[]; asunto?: string; cuerpo?: string; comunicado_id?: string; imagen_url?: string | null }>(req);
   const asunto = body.asunto?.trim();
   const cuerpo = body.cuerpo?.trim();
   if (!body.socio_ids?.length) throw new HttpError(400, "Elegí al menos un destinatario.");
@@ -19,7 +19,7 @@ export const POST = handle(async (req) => {
   const sb = supabaseAdmin();
   const { data: socios, error } = await sb
     .from("socios_resumen")
-    .select("id, razon_social, nombre_comercial, email, deuda")
+    .select("id, razon_social, nombre_comercial, email, emails_extra, deuda")
     .in("id", body.socio_ids);
   if (error) throw new HttpError(500, error.message);
 
@@ -32,11 +32,14 @@ export const POST = handle(async (req) => {
 
   const mensajes = conEmail.map((s) => ({
     to: s.email!.trim(),
+    // Los otros emails de la empresa reciben copia
+    cc: (s.emails_extra || "").split(/[\s,;]+/).map((e: string) => e.trim()).filter((e: string) => emailValido(e) && e !== s.email!.trim()).slice(0, 5),
     subject: reemplazar(asunto, s),
     text: reemplazar(cuerpo, s),
     html: emailLayout({
       titulo: reemplazar(asunto, s),
       cuerpoHtml: textToHtml(reemplazar(cuerpo, s)),
+      imagenUrl: body.imagen_url,
       boton: { texto: "Ingresar al portal de socios", url: env.portalUrl() + (body.comunicado_id ? "/comunicados" : "") },
     }),
   }));

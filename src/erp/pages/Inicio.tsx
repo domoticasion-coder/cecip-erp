@@ -19,6 +19,9 @@ interface Resumen {
   accesos_pendientes: number;
   comercia_nuevas: number;
   proximos_eventos: number;
+  alquileres_pendientes: number;
+  facturas_con_error: number;
+  banco_sin_conciliar: number;
 }
 
 export default function Inicio() {
@@ -33,7 +36,7 @@ export default function Inicio() {
   const { data: pagos } = useQuery({
     queryKey: ["cuotas", "ultimos-pagos"],
     queryFn: async () =>
-      unwrap(await supabase.from("cuotas_detalle").select("*").eq("estado", "pagada").order("recibo_numero", { ascending: false }).limit(8)) as CuotaDetalle[],
+      unwrap(await supabase.from("cuotas_detalle").select("*").eq("estado", "pagada").gt("recibo_numero", 0).order("recibo_numero", { ascending: false }).limit(8)) as CuotaDetalle[],
   });
 
   const { data: eventos } = useQuery({
@@ -52,13 +55,28 @@ export default function Inicio() {
   const mes = MESES[new Date().getMonth()];
   const cobranzaPct = r.facturado_mes > 0 ? Math.round((r.cobrado_mes_cuotas / r.facturado_mes) * 100) : null;
   const sinMontos = categorias && categorias.every((c) => Number(c.cuota_mensual) === 0);
+  const categoriasSinValor = (categorias || []).filter((c) => Number(c.cuota_mensual) === 0).map((c) => c.nombre);
 
   return (
     <>
       <PageHeader title={`Hola, ${staff!.nombre.split(" ")[0]}`} subtitle="Resumen de la gestión del Centro Comercial" />
 
-      {(sinMontos || !!sinCategoria) && can("tesoreria") && (
+      {(sinMontos || !!sinCategoria || categoriasSinValor.length > 0 || r.facturas_con_error > 0 || r.alquileres_pendientes > 0 || r.banco_sin_conciliar > 0) && can("tesoreria") && (
         <div className="mb-4 space-y-2">
+          {!sinMontos && categoriasSinValor.length > 0 && (
+            <Aviso to="/configuracion">
+              Las categorías {categoriasSinValor.join(", ")} no tienen valor de cuota: a sus socios no se les generan cuotas. Cargalo en Configuración.
+            </Aviso>
+          )}
+          {r.facturas_con_error > 0 && (
+            <Aviso to="/facturacion">{r.facturas_con_error} factura(s) rechazadas por ARCA: revisalas y reintentá.</Aviso>
+          )}
+          {r.alquileres_pendientes > 0 && (
+            <Aviso to="/alquileres">{r.alquileres_pendientes} alquiler(es) vencidos sin cobrar.</Aviso>
+          )}
+          {r.banco_sin_conciliar > 0 && (
+            <Aviso to="/tesoreria">{r.banco_sin_conciliar} movimiento(s) del Banco Santander sin conciliar.</Aviso>
+          )}
           {sinMontos && (
             <Aviso to="/configuracion">Todavía no cargaste el valor de la cuota de cada categoría. Configuralo antes de generar cuotas.</Aviso>
           )}

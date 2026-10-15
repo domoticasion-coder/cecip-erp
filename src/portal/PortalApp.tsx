@@ -19,6 +19,7 @@ import Comercia from "./pages/Comercia";
 import MiEmpresa from "./pages/MiEmpresa";
 import { BotonCopiloto } from "./components/Copilot";
 import Copiloto from "./pages/Copiloto";
+import InscripcionPublica from "./pages/InscripcionPublica";
 
 export default function PortalApp() {
   const { session, socioUsuario, loading, recovery, signOut } = useAuth();
@@ -26,6 +27,15 @@ export default function PortalApp() {
   const [vista, setVista] = useState<"login" | "registro" | "olvido">(() =>
     new URLSearchParams(window.location.search).has("registro") ? "registro" : "login"
   );
+
+  // Formulario público de inscripción a eventos: no requiere cuenta
+  if (location.pathname.startsWith("/inscripcion/")) {
+    return (
+      <Routes>
+        <Route path="/inscripcion/:slug" element={<InscripcionPublica />} />
+      </Routes>
+    );
+  }
 
   if (loading) return <Loading />;
   if (recovery || location.pathname === "/definir-clave") return <DefinirClave />;

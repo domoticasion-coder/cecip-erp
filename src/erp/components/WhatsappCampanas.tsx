@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft, Ban, CheckCircle2, Clock, MessageCircle, Pause, Play, Plus, RefreshCw, Save, SkipForward, Sparkles, Trash2, Wand2,
+  ArrowLeft, Ban, CheckCircle2, Clock, Copy, MessageCircle, Pause, Play, Plus, RefreshCw, Save, SkipForward, Sparkles, Trash2, Wand2,
 } from "lucide-react";
 import { supabase, traducirError, unwrap } from "../../lib/supabase";
 import { api } from "../../lib/api";
@@ -13,6 +13,8 @@ import {
 } from "../../lib/variaciones";
 import type { WaCampana, WaMensaje } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Select, Textarea, cx, useToast } from "../../components/ui";
+import { ImagenInput } from "../../components/ImagenInput";
+import { copiarImagen } from "../../lib/imagenes";
 import { useCategorias, useConfig, useInvalidate } from "../data";
 import { useSociosResumen } from "../pages/Socios";
 
@@ -24,6 +26,7 @@ import { useSociosResumen } from "../pages/Socios";
 
 const PROXIMO_KEY = "cecip-wa-proximo-envio";
 const MODO_KEY = "cecip-wa-modo";
+const LINK_IMAGEN_KEY = "cecip-wa-link-imagen";
 
 type Vista = { tipo: "lista" } | { tipo: "nueva"; segmento?: string } | { tipo: "enviar"; id: string };
 
@@ -207,6 +210,7 @@ function NuevaCampana({ origen, segmentoInicial, onVolver, onCreada }: {
 
   const [nombre, setNombre] = useState(segmentoInicial === "vencidas" ? "Recordatorio de cuotas vencidas" : "");
   const [segmento, setSegmento] = useState(segmentoInicial || "activos");
+  const [imagen, setImagen] = useState<string | null>(null);
   const [categoria, setCategoria] = useState("");
   const [rubro, setRubro] = useState("");
 
@@ -281,7 +285,7 @@ function NuevaCampana({ origen, segmentoInicial, onVolver, onCreada }: {
     setCreando(true);
     setError(null);
     const { data: camp, error: e1 } = await supabase.from("wa_campanas")
-      .insert({ nombre: nombre.trim(), mensaje_base: base.trim(), variantes: variantes.map((v) => v.trim()).filter(Boolean), total: destinatarios.length, created_by: staff?.user_id, origen })
+      .insert({ nombre: nombre.trim(), mensaje_base: base.trim(), variantes: variantes.map((v) => v.trim()).filter(Boolean), total: destinatarios.length, created_by: staff?.user_id, origen, imagen_url: imagen })
       .select("id").single();
     if (e1 || !camp) {
       setCreando(false);
@@ -365,6 +369,8 @@ function NuevaCampana({ origen, segmentoInicial, onVolver, onCreada }: {
                 <Checkbox checked={op.cierre} onChange={(v) => setOp({ ...op, cierre: v })} label="Despedida variada" />
                 <Checkbox checked={op.baja} onChange={(v) => setOp({ ...op, baja: v })} label="Opción de BAJA (recomendado)" />
               </div>
+              <ImagenInput value={imagen} onChange={setImagen} carpeta="whatsapp" label="Imagen o flyer (opcional)"
+                hint="Al enviar cada mensaje vas a poder copiar la imagen y pegarla en el chat (Ctrl+V), o mandar su link." />
             </div>
           </Card>
 
@@ -393,6 +399,7 @@ function NuevaCampana({ origen, segmentoInicial, onVolver, onCreada }: {
               {ejemplos.map((e, i) => (
                 <div key={i}>
                   <div className="mb-1 text-[11px] font-medium text-slate-500">Para: {e.socio}</div>
+                  {imagen && <img src={imagen} alt="" className="mb-1 max-h-40 rounded-lg rounded-tr-none bg-[#d9fdd3] p-1 shadow-sm" />}
                   <div className="whitespace-pre-wrap rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-2 text-sm text-[#111b21] shadow-sm">{e.texto}</div>
                 </div>
               ))}
@@ -450,6 +457,9 @@ function EnviarCampana({ id, onVolver }: { id: string; onVolver: () => void }) {
   const [ahora, setAhora] = useState(Date.now());
   const [texto, setTexto] = useState("");
   const [abriendo, setAbriendo] = useState(false);
+  const [conLinkImagen, setConLinkImagen] = useState(() => {
+    try { return localStorage.getItem(LINK_IMAGEN_KEY) === "1"; } catch { return false; }
+  });
   const avisado = useRef(false);
 
   const { data, refetch } = useQuery({
@@ -511,6 +521,8 @@ function EnviarCampana({ id, onVolver }: { id: string; onVolver: () => void }) {
         }
         mensaje = mensaje.replace(/\{\{\s*link_pago\s*\}\}/gi, link || "el Portal de Socios (sección Mis cuotas)");
       }
+      const imagenUrl = data?.campana.imagen_url;
+      if (imagenUrl && conLinkImagen && !mensaje.includes(imagenUrl)) mensaje = `${mensaje}\n\n${imagenUrl}`;
       const url = linkWhatsapp(actual.telefono, mensaje, modo);
       if (ventana) ventana.location.href = url;
       else window.location.href = url;
@@ -604,6 +616,20 @@ function EnviarCampana({ id, onVolver }: { id: string; onVolver: () => void }) {
                 <Button size="sm" variant="secondary" icon={<Save className="h-3.5 w-3.5" />} onClick={guardarTexto}>Guardar cambios del mensaje</Button>
               )}
               {usaLinkPago(texto) && <p className="text-xs text-blue-700">El link de pago de este socio se genera al tocar "Abrir WhatsApp".</p>}
+              {data.campana.imagen_url && (
+                <div className="flex flex-wrap items-start gap-3 rounded-lg border border-slate-200 p-3">
+                  <img src={data.campana.imagen_url} alt="" className="h-24 rounded object-cover" />
+                  <div className="min-w-48 flex-1 space-y-2 text-xs text-slate-600">
+                    <p>WhatsApp no permite adjuntar imágenes desde un link: <b>copiala</b> y pegala en el chat con <b>Ctrl+V</b> antes de enviar (en el celular, mandá el link).</p>
+                    <Button size="sm" variant="secondary" icon={<Copy className="h-3.5 w-3.5" />}
+                      onClick={() => copiarImagen(data.campana.imagen_url!).then(() => toast("Imagen copiada: pegala en el chat con Ctrl+V.")).catch(() => toast("Tu navegador no permitió copiar la imagen. Usá la opción del link.", "error"))}>
+                      Copiar imagen
+                    </Button>
+                    <Checkbox checked={conLinkImagen} onChange={(v) => { setConLinkImagen(v); try { localStorage.setItem(LINK_IMAGEN_KEY, v ? "1" : "0"); } catch { /* */ } }}
+                      label="Agregar el link de la imagen al final del mensaje" />
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 

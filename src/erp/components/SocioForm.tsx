@@ -1,20 +1,22 @@
 import { useEffect, useState } from "react";
 import { supabase, traducirError } from "../../lib/supabase";
-import { cuitValido, formatCuit, hoyISO } from "../../lib/format";
-import type { Socio } from "../../lib/types";
+import { cuitValido, formatCuit, hoyISO, pesos } from "../../lib/format";
+import { CONDICIONES_IVA, SEGUIMIENTOS, type CodigoPeriodicidad, type CondicionIva, type Seguimiento, type Socio } from "../../lib/types";
 import { Button, Checkbox, ErrorBox, Field, Input, Modal, Select, Textarea, useToast } from "../../components/ui";
-import { useCategorias, useInvalidate } from "../data";
+import { useCategorias, useInvalidate, usePeriodicidades } from "../data";
 
 type FormState = Omit<Socio, "id" | "created_at" | "numero_socio"> & { numero_socio: string };
 
 const vacio: FormState = {
   numero_socio: "", razon_social: "", nombre_comercial: "", cuit: "", rubro: "", categoria_id: null, estado: "activo",
   contacto_nombre: "", email: "", whatsapp: "", telefono: "", direccion: "", localidad: "Paraná", fecha_alta: hoyISO(), observaciones: "", whatsapp_baja: false,
+  periodicidad: "mensual", condicion_iva: null, emails_extra: "", seguimiento: null, facturar_auto: true,
 };
 
 /** Alta / edición de socio. socio = null cierra, socio = "nuevo" crea uno nuevo. */
 export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" | null; onClose: () => void; onSaved?: (id: string) => void }) {
   const { data: categorias } = useCategorias();
+  const { data: periodicidades } = usePeriodicidades();
   const invalidate = useInvalidate();
   const toast = useToast();
   const [f, setF] = useState<FormState>(vacio);
@@ -30,9 +32,17 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((x) => ({ ...x, [k]: v }));
 
+  const cat = categorias?.find((c) => c.id === f.categoria_id);
+  const per = periodicidades?.find((p) => p.codigo === f.periodicidad);
+  const cuotaTexto = cat && per && Number(cat.cuota_mensual) > 0
+    ? `Cuota ${per.nombre.toLowerCase()}: ${pesos(Number(cat.cuota_mensual) * per.meses * (1 - Number(per.descuento) / 100))}`
+    : undefined;
+
   async function guardar() {
     if (!f.razon_social.trim()) return setError("La razón social es obligatoria.");
-    if (f.cuit && !cuitValido(f.cuit)) return setError("El CUIT no es válido (revisá los 11 dígitos).");
+    // (los CUIT importados del Excel se aceptan como están; se valida solo si se cambia)
+    const cuitOriginal = socio && socio !== "nuevo" ? socio.cuit : null;
+    if (f.cuit && f.cuit !== cuitOriginal && !cuitValido(f.cuit)) return setError("El CUIT no es válido (revisá los 11 dígitos).");
     setSaving(true);
     setError(null);
 
@@ -53,6 +63,11 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
       fecha_alta: f.fecha_alta || hoyISO(),
       observaciones: f.observaciones?.trim() || null,
       whatsapp_baja: !!f.whatsapp_baja,
+      periodicidad: f.periodicidad,
+      condicion_iva: f.condicion_iva || null,
+      emails_extra: f.emails_extra?.trim().toLowerCase() || null,
+      seguimiento: f.seguimiento || null,
+      facturar_auto: !!f.facturar_auto,
     };
 
     const res = socio === "nuevo"
@@ -102,6 +117,13 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
             {categorias?.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </Select>
         </Field>
+        <Field label="Forma de pago (periodicidad de la cuota)" hint={cuotaTexto}>
+          <Select value={f.periodicidad} onChange={(e) => set("periodicidad", e.target.value as CodigoPeriodicidad)}>
+            {periodicidades?.map((p) => (
+              <option key={p.codigo} value={p.codigo}>{p.nombre}{Number(p.descuento) ? ` (${p.descuento}% de descuento)` : ""}</option>
+            ))}
+          </Select>
+        </Field>
         <Field label="Estado">
           <Select value={f.estado} onChange={(e) => set("estado", e.target.value as Socio["estado"])}>
             <option value="activo">Activo</option>
@@ -109,6 +131,21 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
             <option value="baja">Baja</option>
           </Select>
         </Field>
+        <Field label="Seguimiento">
+          <Select value={f.seguimiento || ""} onChange={(e) => set("seguimiento", (e.target.value || null) as Seguimiento | null)}>
+            <option value="">—</option>
+            {Object.entries(SEGUIMIENTOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </Select>
+        </Field>
+        <Field label="Condición frente al IVA" hint="Define el tipo de factura (A, B o C).">
+          <Select value={f.condicion_iva || ""} onChange={(e) => set("condicion_iva", (e.target.value || null) as CondicionIva | null)}>
+            <option value="">— Sin dato —</option>
+            {CONDICIONES_IVA.map((c) => <option key={c} value={c}>{c === "RI" ? "Responsable Inscripto" : c}</option>)}
+          </Select>
+        </Field>
+        <div className="flex items-end pb-2">
+          <Checkbox checked={!!f.facturar_auto} onChange={(v) => set("facturar_auto", v)} label="Facturarle automáticamente cada cobro" />
+        </div>
         <Field label="Rubro">
           <Input value={f.rubro || ""} onChange={(e) => set("rubro", e.target.value)} />
         </Field>
@@ -117,6 +154,9 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
         </Field>
         <Field label="Email">
           <Input type="email" value={f.email || ""} onChange={(e) => set("email", e.target.value)} />
+        </Field>
+        <Field label="Otros emails" hint="Separados por coma (reciben copia de los avisos).">
+          <Input value={f.emails_extra || ""} onChange={(e) => set("emails_extra", e.target.value)} />
         </Field>
         <Field label="WhatsApp" hint="Con característica, ej: 343 4551234">
           <Input value={f.whatsapp || ""} onChange={(e) => set("whatsapp", e.target.value)} />

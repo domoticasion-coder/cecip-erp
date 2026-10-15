@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Download, Trash2 } from "lucide-react";
 import { supabase, traducirError, unwrap } from "../../lib/supabase";
@@ -6,12 +6,31 @@ import { useAuth } from "../../lib/auth";
 import { descargarCSV } from "../../lib/csv";
 import { fecha, hoyISO, MESES, pesos } from "../../lib/format";
 import { CATEGORIAS_MOVIMIENTO, type Movimiento } from "../../lib/types";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Stat, Table, useToast } from "../../components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Stat, Table, Tabs, useToast } from "../../components/ui";
 import { useCuentas, useInvalidate } from "../data";
+import { BancoSantander } from "../components/Banco";
 
 interface Saldo { id: string; nombre: string; tipo: string; activa: boolean; saldo: number; sin_conciliar: number }
 
 export default function Tesoreria() {
+  const [vista, setVista] = useState<"movimientos" | "banco">("movimientos");
+  const tabs = (
+    <Tabs<"movimientos" | "banco"> value={vista} onChange={setVista} tabs={[
+      { value: "movimientos", label: "Movimientos" },
+      { value: "banco", label: "Banco Santander" },
+    ]} />
+  );
+  if (vista === "movimientos") return <Movimientos tabs={tabs} />;
+  return (
+    <>
+      <PageHeader title="Tesorería" subtitle="Movimientos de la cuenta bancaria y conciliación" />
+      {tabs}
+      <BancoSantander />
+    </>
+  );
+}
+
+function Movimientos({ tabs }: { tabs: ReactNode }) {
   const { staff } = useAuth();
   const toast = useToast();
   const invalidate = useInvalidate();
@@ -60,6 +79,7 @@ export default function Tesoreria() {
 
   async function eliminar(m: Movimiento) {
     if (m.cuota_id) return toast("Este ingreso corresponde al cobro de una cuota. Para eliminarlo, revertí el pago desde la cuota.", "error");
+    if (m.alquiler_cargo_id) return toast("Este ingreso corresponde al cobro de un alquiler. Para eliminarlo, anulá el cobro desde Alquileres.", "error");
     if (!confirm(`¿Eliminar el movimiento "${m.detalle}" por ${pesos(m.monto)}?`)) return;
     const { error } = await supabase.from("movimientos").delete().eq("id", m.id);
     if (error) return toast(traducirError(error.message), "error");
@@ -86,6 +106,8 @@ export default function Tesoreria() {
           </>
         }
       />
+
+      {tabs}
 
       <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {(saldos || []).filter((s) => s.activa || Number(s.saldo) !== 0).map((s) => (

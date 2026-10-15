@@ -14,8 +14,11 @@ Un solo proyecto que sirve dos aplicaciones según el subdominio:
 ## Qué resuelve
 
 **Cuotas y cobranza**
-- Valor de cuota por categoría de socio, editable desde Configuración.
-- "Generar cuotas del mes": crea la cuota social para todos los socios activos con un clic, sin duplicar el período.
+- Categorías **BANCOS, AA, A, B, C, S y JE/ME** con el valor mensual de la cuota, editable desde Configuración.
+- Cada socio tiene su **forma de pago**: mensual, bimestral, trimestral, semestral o anual, con el descuento de cada una (anual 12%, semestral 6%, trimestral 3%, como en la planilla de Tesorería; se editan en Configuración). Los bimestres, trimestres y semestres son del año calendario.
+- "Generar cuotas del mes": a cada socio activo le genera el período de su forma de pago que incluye ese mes (al anual, el año; al bimestral, el bimestre), con vista previa y sin duplicar nunca un período. Se puede usar todos los meses.
+- "Recalcular cuotas pendientes": después de un aumento, actualiza el importe de las cuotas impagas.
+- Padrón 2026 importado del Excel "Registro de Asociados": categoría, forma de pago, CUIT, condición IVA, emails, y los meses pagos (P) y adeudados (F) como cuotas pagadas o pendientes. Los colores de la planilla quedan como marcas de seguimiento (posible baja, baja, deuda reciente, deuda condonada, cobra el cobrador).
 - Interés por mora configurable (% mensual, proporcional por día de atraso). Se calcula automáticamente.
 - Cobro manual (efectivo, transferencia, cheque, etc.). Cada cobro numera el recibo, registra el ingreso en tesorería y queda anotado en el historial del socio.
 - **Links de pago de Mercado Pago**, por una cuota o por toda la deuda. Al pagarse, la cuota se marca pagada sola (webhook) y se genera el recibo.
@@ -27,8 +30,15 @@ Un solo proyecto que sirve dos aplicaciones según el subdominio:
 
 **Tesorería:** saldos por cuenta (caja, bancos, Mercado Pago), ingresos y egresos por categoría, conciliación y exportación a Excel.
 
+**Banco Santander:** los movimientos de la cuenta llegan solos desde un flujo de **n8n** conectado a la API de Santander (requiere el convenio de API con el banco), o se importan desde el extracto en CSV. Tesorería los concilia con un clic: un crédito se imputa a la cuota del socio (lo reconoce por CUIT) o a un alquiler, y genera el recibo y la factura; los débitos se registran como gasto.
+
+**Facturación electrónica (ARCA vía n8n):** cada cobro de cuota o alquiler puede facturarse automáticamente. El ERP arma la factura (A, B o C según la condición frente al IVA del CeCIP y del socio) y la envía a un webhook de **n8n**, que la emite en ARCA (WSFE) y devuelve CAE, número y PDF. Cada socio tiene su pestaña **Facturación** con sus comprobantes y los cobros sin facturar; el socio ve sus facturas en el portal. Si ARCA rechaza una, queda marcada para reintentar.
+
+**Alquileres:** los tres inmuebles del CeCIP con su contrato (inquilino, monto, vencimiento, depósito y ajuste por ICL, IPC, Casa Propia o porcentaje con aviso de la fecha de ajuste), generación mensual de los alquileres, cobro con recibo e ingreso en tesorería, recordatorio por WhatsApp con los datos para transferir, cargos extra (expensas, servicios) y facturación.
+
 **Comunicación**
-- Comunicados oficiales publicados en el portal.
+- Comunicados oficiales publicados en el portal, con **imagen o flyer**.
+- Imágenes en los emails, en las novedades y emails de ComercIA y en las campañas de WhatsApp (se copia la imagen para pegarla en el chat o se envía su link). Se guardan en Supabase Storage.
 - Emails masivos por segmento (todos, morosos, al día, por categoría) con variables `{{nombre}}` y `{{deuda}}`.
 - Difusión por WhatsApp uno por uno.
 - Historial de todo lo enviado.
@@ -43,7 +53,7 @@ Un solo proyecto que sirve dos aplicaciones según el subdominio:
 - Padrón con búsqueda y filtros, ficha con cuenta corriente e historial de contacto (llamadas, reuniones, acuerdos).
 - Importación desde Excel/CSV, exportación y asignación masiva de categoría.
 
-**Eventos y capacitaciones:** publicación en el portal, inscripción de socios con control de cupo, asistencia, exportación y cobro de la inscripción a los socios.
+**Eventos y capacitaciones:** publicación en el portal, inscripción de socios con control de cupo, asistencia, exportación y cobro de la inscripción a los socios. Además, cada evento puede tener un **formulario de inscripción público** para no socios: un link (`portalsocios.../inscripcion/...`) para compartir por WhatsApp, email o redes, con imagen, preguntas propias (texto, opciones, sí/no), control de cupo y protección anti-spam. Si quien se anota ingresa el CUIT de una empresa socia, se lo reconoce.
 
 **ComercIA (convenio CeCIP + FactorIA + IEC Services):** en el portal, el socio ve la sección ComercIA con el formato de la app ComercIA Paraná. Arranca con **El convenio**, una página de presentación llamativa con las **promociones** para socios, qué implica el convenio, quiénes participan, cómo sumarse y preguntas frecuentes. Sigue con las pestañas **Ofertas para tu comercio**, **IEC Services** (servicios técnicos) y **Cursos IEC**. Con "Pedir información" se abre WhatsApp de FactorIA con el mensaje listo, y el pedido queda registrado en el ERP (sección ComercIA) para el seguimiento. Todo el contenido (promociones, convenio, ofertas, servicios, cursos, WhatsApp de FactorIA y link de adhesión) se edita desde *ERP → Contenido del portal*.
 
@@ -56,7 +66,7 @@ Un solo proyecto que sirve dos aplicaciones según el subdominio:
 | Rol | Puede |
 |---|---|
 | Administrador | Todo, incluida la configuración y el personal |
-| Tesorería | Cuotas, cobros, tesorería y recordatorios |
+| Tesorería | Cuotas, cobros, tesorería, banco, facturación, alquileres y recordatorios |
 | Atención al socio | Socios, comunicación, eventos, accesos e información del Copiloto |
 | ComercIA (IEC / FactorIA) | Usuario **externo**: solicitudes de ComercIA, todo el contenido de ComercIA y **Difusión ComercIA** (novedades en el portal, email y campañas de WhatsApp propias). No ve socios, cuotas, tesorería ni la comunicación del CeCIP: para email el servidor arma la lista y para WhatsApp recibe solo nombre y teléfono de cada destinatario. |
 
@@ -71,7 +81,10 @@ Los permisos se controlan **en la base de datos**: aunque alguien conozca la API
 1. Creá un proyecto en <https://supabase.com>. Conviene elegir la región São Paulo.
 2. En **SQL Editor** ejecutá, en orden:
    1. `supabase/migrations/001_esquema.sql`: tablas, permisos y lógica de cobro.
-   2. `supabase/migrations/002_padron_inicial.sql`: los 227 socios del padrón original. No traen CUIT ni categoría.
+   2. `supabase/migrations/002_padron_inicial.sql`: los 227 socios del padrón original (con teléfonos y WhatsApp).
+   3. `supabase/migrations/005_cobros_alquileres_facturacion.sql`: periodicidades, categorías BANCOS/AA/A/B/C/S/JE-ME, alquileres, facturación, banco, imágenes y formularios públicos.
+   4. `supabase/migrations/006_padron_2026.sql`: el Excel "2026 Registro de Asociados". Actualiza los socios por N° de socio, agrega los nuevos y crea las cuotas 2026 pagadas y adeudadas. Al final muestra un resumen y la lista de socios del padrón viejo que no figuran en el Excel, para revisarlos. **BANCOS y S no tienen precio en la planilla**: cargalos en Configuración y volvé a ejecutar el 006 (se puede repetir sin duplicar).
+   - `004_usuarios_prueba.sql` es opcional (usuarios de prueba). Si ya ejecutaste 001 a 004, solo te falta correr 005 y 006.
 3. Creá tu usuario administrador:
    1. En **Authentication → Users → Add user**, cargá tu email y contraseña y marcá "Auto Confirm User".
    2. Editá y ejecutá `supabase/migrations/003_primer_admin.sql`.
@@ -81,7 +94,8 @@ Los permisos se controlan **en la base de datos**: aunque alguien conozca la API
 5. **Emails de Supabase** (confirmación de cuenta, invitaciones y recuperación de contraseña): el servidor de correo que trae Supabase por defecto solo manda unos pocos emails por hora. Configurá **Authentication → Emails → SMTP Settings** con Resend:
    - host `smtp.resend.com`, puerto `465`, usuario `resend` y como contraseña tu API key de Resend.
    - En la misma sección podés traducir las plantillas al español.
-6. En **Project Settings → API** copiá `Project URL`, `anon public key` y `service_role key`. La `service_role key` nunca debe publicarse.
+6. **Storage:** la migración 005 crea el bucket público `imagenes` y sus permisos. Si en el resultado aparece el aviso de que no pudo crear los permisos, creá en **Storage → Policies** (bucket `imagenes`) una política de INSERT y otra de DELETE para `authenticated` con la condición `public.is_staff() or public.has_role(array['comercia'])`.
+7. En **Project Settings → API** copiá `Project URL`, `anon public key` y `service_role key`. La `service_role key` nunca debe publicarse.
 
 ### 2. Resend (emails)
 
@@ -138,11 +152,21 @@ En el proyecto original de la web, los botones están en `src/App.tsx`, buscando
 
 ### 6. Primeros pasos dentro del ERP
 
-1. **Configuración → Cuotas y cobranza:** cargá el valor de la cuota de cada categoría, el día de vencimiento y el interés por mora.
+1. **Configuración → Cuotas y cobranza:** revisá el valor mensual de cada categoría (falta BANCOS y S), los descuentos por forma de pago, el día de vencimiento y el interés por mora. Ojo: el interés se aplica también a las deudas importadas del Excel; si no corresponde, dejalo en 0.
 2. **Configuración → Institución:** cargá CUIT, dirección y los datos bancarios para transferencias (CBU y alias).
 3. **Socios:** filtrá "Sin categoría", seleccioná a todos y usá **Asignar categoría**. Completá los CUIT, o importá un Excel con `cuit` y `numero_socio`.
 4. **Configuración → Personal:** invitá a tesorería y atención al socio.
 5. **Cuotas → Generar cuotas del mes.**
+6. **Alquileres → Inmuebles y contratos:** cargá nombre, dirección y el contrato vigente de cada inmueble.
+7. **Facturación → Conexión ARCA / n8n:** condición del CeCIP frente al IVA, punto de venta y, cuando el flujo de n8n esté listo, activá la facturación automática.
+
+### 7. n8n: facturación en ARCA y movimientos de Santander
+
+Las variables `N8N_FACTURAS_WEBHOOK_URL`, `N8N_BANCO_WEBHOOK_URL` y `N8N_SECRET` se cargan en Vercel. Todas las llamadas entre el ERP y n8n llevan el header `x-cecip-secret` con el valor de `N8N_SECRET` (en n8n, verificalo en el nodo Webhook).
+
+**Facturas:** el ERP hace `POST` a `N8N_FACTURAS_WEBHOOK_URL` con `{ evento: "emitir_factura", emisor, factura, receptor, callback_url }` (el detalle completo está en *Facturación → Conexión ARCA / n8n*). El flujo autentica en WSAA con el certificado del CeCIP, pide el último número (`FECompUltimoAutorizado`) y emite (`FECAESolicitar`). Responde `{ cae, cae_vencimiento, numero, pdf_url }` (o `{ error }`), en la misma respuesta o después con un `POST` a `/api/integraciones/facturas-callback` incluyendo `factura_id`. Las facturas en cola se reintentan una vez por día.
+
+**Santander:** con el convenio de API del banco, un flujo de n8n consulta los movimientos y hace `POST /api/integraciones/banco-movimientos` con `{ banco: "Santander", movimientos: [{ id, fecha, descripcion, monto, saldo, referencia, contraparte_nombre, contraparte_cuit }] }` (monto positivo = crédito). El botón *Sincronizar con Santander* llama a `N8N_BANCO_WEBHOOK_URL` con `{ desde, hasta, callback_url }`; el flujo puede responder con `movimientos` o enviarlos después. Repetir un movimiento no lo duplica.
 
 ---
 
@@ -199,7 +223,8 @@ api/                     Funciones serverless (Vercel)
   accesos/resolver.ts    Aprobar/rechazar socios del portal (+ email)
   staff/invitar.ts       Invitar personal
   copilot.ts             Copiloto CeCIP (Gemini)
-  cron/recordatorios.ts  Recordatorios automáticos diarios
+  cron/recordatorios.ts  Recordatorios automáticos diarios (y reintento de facturas en cola)
+  integraciones/[accion].ts  n8n: facturas ARCA (procesar/callback) y movimientos de Santander
 src/erp/                 ERP administrativo
 src/portal/              Portal de socios
 shared/                  Tipos de ComercIA/IEC y armado del contexto del Copiloto (portal, ERP y api)

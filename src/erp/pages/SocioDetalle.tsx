@@ -6,7 +6,7 @@ import { supabase, traducirError, unwrap } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { fecha, fechaHora, formatCuit, nombreSocio, pesos } from "../../lib/format";
 import { abrirWhatsapp, normalizarWhatsapp } from "../../lib/whatsapp";
-import type { CuotaDetalle, Envio, SocioNota, SocioResumen, SocioUsuario } from "../../lib/types";
+import { SEGUIMIENTOS, type CuotaDetalle, type Envio, type SocioNota, type SocioResumen, type SocioUsuario } from "../../lib/types";
 import { Badge, Button, Card, Empty, Loading, PageHeader, Select, SituacionBadge, Stat, Tabs, Textarea, useToast } from "../../components/ui";
 import { useInvalidate } from "../data";
 import { SocioForm } from "../components/SocioForm";
@@ -14,8 +14,9 @@ import { CuotasTabla } from "../components/CuotasTabla";
 import { NuevaCuotaModal } from "../components/NuevaCuota";
 import { LinkPagoModal, type LinkTarget } from "../components/Cobro";
 import { EnviarEmailModal } from "../components/EnviarEmail";
+import { FacturacionSocio } from "../components/Facturas";
 
-type Tab = "cuenta" | "historial" | "datos" | "portal" | "envios";
+type Tab = "cuenta" | "facturacion" | "historial" | "datos" | "portal" | "envios";
 
 const TIPOS_NOTA: Record<SocioNota["tipo"], string> = {
   nota: "Nota", llamada: "Llamada", reunion: "Reunión", email: "Email", whatsapp: "WhatsApp", pago: "Pago", sistema: "Sistema",
@@ -78,6 +79,8 @@ export default function SocioDetalle() {
             {socio.cuit && <span>· CUIT {formatCuit(socio.cuit)}</span>}
             <SituacionBadge s={socio.estado} />
             {socio.categoria_nombre ? <Badge tone="blue">{socio.categoria_nombre}</Badge> : <Badge tone="amber">Sin categoría</Badge>}
+            {socio.periodicidad_nombre && <Badge tone="purple">Paga {socio.periodicidad_nombre.toLowerCase()}</Badge>}
+            {socio.seguimiento && <Badge tone={SEGUIMIENTOS[socio.seguimiento].tone}>{SEGUIMIENTOS[socio.seguimiento].label}</Badge>}
           </span>
         }
         actions={
@@ -103,7 +106,11 @@ export default function SocioDetalle() {
         <Stat label="Cuotas vencidas" value={socio.cuotas_vencidas} tone={socio.cuotas_vencidas ? "bad" : "default"}
           hint={socio.max_dias_atraso ? `Máx. ${socio.max_dias_atraso} días de atraso` : undefined} />
         <Stat label={`Pagado en ${new Date().getFullYear()}`} value={pesos(pagadoAnio)} />
-        <Stat label="Cuota mensual" value={socio.cuota_mensual ? pesos(socio.cuota_mensual) : "—"} hint={`Socio desde ${fecha(socio.fecha_alta)}`} />
+        <Stat
+          label={socio.periodicidad_nombre ? `Cuota ${socio.periodicidad_nombre.toLowerCase()}` : "Cuota"}
+          value={socio.cuota_periodo ? pesos(socio.cuota_periodo) : "—"}
+          hint={socio.cuota_mensual ? `${pesos(socio.cuota_mensual)} por mes · socio desde ${fecha(socio.fecha_alta)}` : `Socio desde ${fecha(socio.fecha_alta)}`}
+        />
       </div>
 
       <Tabs<Tab>
@@ -111,6 +118,7 @@ export default function SocioDetalle() {
         onChange={setTab}
         tabs={[
           { value: "cuenta", label: "Cuenta corriente" },
+          { value: "facturacion", label: "Facturación" },
           { value: "historial", label: "Historial de contacto" },
           { value: "datos", label: "Datos" },
           { value: "portal", label: "Acceso al portal" },
@@ -134,6 +142,7 @@ export default function SocioDetalle() {
         </Card>
       )}
 
+      {tab === "facturacion" && <FacturacionSocio socio={socio} />}
       {tab === "historial" && <Historial socioId={socio.id} />}
 
       {tab === "datos" && (
@@ -143,8 +152,12 @@ export default function SocioDetalle() {
             <Dato k="Nombre de fantasía" v={socio.nombre_comercial} />
             <Dato k="CUIT" v={formatCuit(socio.cuit)} />
             <Dato k="Rubro" v={socio.rubro} />
+            <Dato k="Categoría" v={socio.categoria_nombre} />
+            <Dato k="Forma de pago" v={socio.periodicidad_nombre} />
+            <Dato k="Condición frente al IVA" v={socio.condicion_iva} />
             <Dato k="Contacto" v={socio.contacto_nombre} />
             <Dato k="Email" v={socio.email} />
+            <Dato k="Otros emails" v={socio.emails_extra} />
             <Dato k="WhatsApp" v={socio.whatsapp} />
             <Dato k="Teléfono" v={socio.telefono} />
             <Dato k="Dirección" v={[socio.direccion, socio.localidad].filter(Boolean).join(", ")} />

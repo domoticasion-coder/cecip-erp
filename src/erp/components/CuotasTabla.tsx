@@ -114,10 +114,13 @@ export function CuotasTabla({
                     <Button size="sm" variant="secondary" title="Link de pago" icon={<Link2 className="h-3.5 w-3.5" />}
                       onClick={() => setLink({ socio: { id: c.socio_id, razon_social: c.razon_social, nombre_comercial: c.nombre_comercial, whatsapp: c.socio_whatsapp, email: c.socio_email }, cuotaIds: [c.id] })} />
                   )}
-                  {c.estado === "pagada" && (
+                  {c.estado === "pagada" && c.recibo_numero && (
                     <Link to={`/recibo/${c.id}`}>
                       <Button size="sm" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />}>Recibo</Button>
                     </Link>
+                  )}
+                  {c.estado === "pagada" && !c.recibo_numero && c.importada && (
+                    <span className="self-center text-[11px] text-slate-400" title="Pago registrado en el Excel de Tesorería, antes del sistema">Pago del Excel</span>
                   )}
                   {esTesoreria && (
                     <Button size="sm" variant="ghost" onClick={() => setMenu(menu === c.id ? null : c.id)} icon={<MoreHorizontal className="h-4 w-4" />} />

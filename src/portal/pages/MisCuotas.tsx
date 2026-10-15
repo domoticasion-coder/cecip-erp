@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Clock, CreditCard, FileText, Landmark, XCircle } from "lucide-react";
 import { api } from "../../lib/api";
+import { supabase } from "../../lib/supabase";
 import { fecha, pesos } from "../../lib/format";
 import { Button, Card, Empty, ErrorBox, Loading, SituacionBadge, Table } from "../../components/ui";
 import { useConfigPortal, useMisCuotas, usePagar } from "../data";
@@ -14,6 +15,15 @@ export default function MisCuotas({ socioId }: { socioId: string }) {
   const { data: cfg } = useConfigPortal();
   const { pagar, pagando, error } = usePagar();
   const [retorno, setRetorno] = useState<"ok" | "pendiente" | "error" | null>(null);
+
+  // Facturas electrónicas emitidas (ARCA) de las cuotas pagadas
+  const { data: facturas } = useQuery({
+    queryKey: ["mis-facturas", socioId],
+    queryFn: async () => {
+      const { data } = await supabase.from("facturas").select("cuota_id, pdf_url, tipo, punto_venta, numero").eq("estado", "emitida").eq("socio_id", socioId);
+      return new Map((data || []).map((f) => [f.cuota_id as string, f as { pdf_url: string | null; tipo: string; punto_venta: number | null; numero: number | null }]));
+    },
+  });
 
   // Vuelta desde Mercado Pago: verificar el pago al instante
   useEffect(() => {
@@ -101,8 +111,13 @@ export default function MisCuotas({ socioId }: { socioId: string }) {
                   <td className="td">{fecha(c.fecha_pago)}</td>
                   <td className="td text-sm">{c.metodo_pago}</td>
                   <td className="td text-right tabular-nums">{pesos(c.total)}</td>
-                  <td className="td text-right">
-                    <Link to={`/recibo/${c.id}`}><Button size="sm" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />}>Recibo</Button></Link>
+                  <td className="td whitespace-nowrap text-right">
+                    {facturas?.get(c.id)?.pdf_url && (
+                      <a href={facturas.get(c.id)!.pdf_url!} target="_blank" rel="noopener noreferrer" className="mr-1 inline-block">
+                        <Button size="sm" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />}>Factura {facturas.get(c.id)!.tipo}</Button>
+                      </a>
+                    )}
+                    {c.recibo_numero && <Link to={`/recibo/${c.id}`}><Button size="sm" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />}>Recibo</Button></Link>}
                   </td>
                 </tr>
               ))}

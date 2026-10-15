@@ -1,11 +1,13 @@
 import { handle, json, supabaseAdmin } from "../_lib/core.js";
 import { enviarRecordatorios } from "../_lib/cobranza.js";
+import { procesarFacturas } from "../_lib/integraciones.js";
 
 /**
  * GET /api/cron/recordatorios — lo ejecuta Vercel Cron una vez por día (ver vercel.json).
  * Si en Configuración están activados los recordatorios automáticos:
  *  - avisa a quienes tienen una cuota que vence en "dias_aviso" días (una sola vez), y
  *  - a quienes tienen cuotas vencidas, como máximo una vez cada 7 días.
+ * Además reintenta enviar a n8n / ARCA las facturas que hayan quedado en cola.
  */
 export const GET = handle(async (req) => {
   const secret = process.env.CRON_SECRET;
@@ -13,9 +15,11 @@ export const GET = handle(async (req) => {
     return json({ error: "No autorizado" }, 401);
   }
 
+  const facturas = await procesarFacturas(new URL(req.url).origin).catch((e) => ({ error: (e as Error).message }));
+
   const sb = supabaseAdmin();
   const { data: cfg } = await sb.from("configuracion").select("recordatorios_auto, dias_aviso").eq("id", 1).single();
-  if (!cfg?.recordatorios_auto) return json({ ok: true, desactivado: true });
+  if (!cfg?.recordatorios_auto) return json({ ok: true, desactivado: true, facturas });
 
   const hoy = new Date();
   const objetivo = new Date(hoy.getTime() + cfg.dias_aviso * 86400000).toISOString().slice(0, 10);
@@ -28,8 +32,8 @@ export const GET = handle(async (req) => {
   ]);
 
   const socios = [...new Set([...(porVencer || []), ...(vencidas || [])].map((c) => c.socio_id))];
-  if (socios.length === 0) return json({ ok: true, enviados: 0 });
+  if (socios.length === 0) return json({ ok: true, enviados: 0, facturas });
 
   const result = await enviarRecordatorios(socios, { createdBy: null });
-  return json({ ok: true, ...result });
+  return json({ ok: true, ...result, facturas });
 });

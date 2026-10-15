@@ -9,7 +9,7 @@ import { descargarCSV } from "../../lib/csv";
 import { fecha, hoyISO, MESES, nombreSocio, pesos } from "../../lib/format";
 import type { CuotaDetalle } from "../../lib/types";
 import { Button, Card, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Stat, useToast } from "../../components/ui";
-import { useCategorias, useConfig, useInvalidate, useSociosMin } from "../data";
+import { useCategorias, useConfig, useInvalidate, usePeriodicidades, useSociosMin } from "../data";
 import { CuotasTabla } from "../components/CuotasTabla";
 import { NuevaCuotaModal } from "../components/NuevaCuota";
 import { INVALIDAR_COBRO } from "../components/Cobro";
@@ -44,8 +44,8 @@ export default function Cuotas() {
         const [y, m] = periodo.split("-").map(Number);
         const desde = `${periodo}-01`;
         const hasta = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-        // Cuotas sociales del período + cargos sueltos que vencen ese mes
-        query = query.or(`periodo.eq.${desde},and(periodo.is.null,vencimiento.gte.${desde},vencimiento.lt.${hasta})`);
+        // Cuotas sociales que cubren ese mes (una bimestral o anual cubre varios) + cargos sueltos que vencen ese mes
+        query = query.or(`and(periodo.lte.${desde},periodo_hasta.gte.${desde}),and(periodo.is.null,vencimiento.gte.${desde},vencimiento.lt.${hasta})`);
       }
       if (estado === "vencida") query = query.eq("estado", "pendiente").lt("vencimiento", hoyISO());
       else if (estado) query = query.eq("estado", estado);
@@ -188,6 +188,7 @@ export default function Cuotas() {
 function GenerarModal({ open, onClose, onDone, toastFn }: { open: boolean; onClose: () => void; onDone: (periodo: string) => void; toastFn: (t: string, tipo?: "ok" | "error") => void }) {
   const { data: cfg } = useConfig();
   const { data: categorias } = useCategorias();
+  const { data: periodicidades } = usePeriodicidades();
   const { data: socios } = useSociosMin();
   const [periodo, setPeriodo] = useState(mesActual());
   const [venc, setVenc] = useState("");
@@ -199,29 +200,34 @@ function GenerarModal({ open, onClose, onDone, toastFn }: { open: boolean; onClo
     setVenc(`${periodo}-${String(cfg.dia_vencimiento).padStart(2, "0")}`);
   }, [periodo, cfg]);
 
-  const { data: yaGeneradas } = useQuery({
-    queryKey: ["cuotas", "generadas", periodo],
+  // Vista previa calculada por la base con la misma lógica que la generación
+  const { data: aGenerar, isFetching } = useQuery({
+    queryKey: ["cuotas", "a-generar", periodo],
     enabled: open,
-    queryFn: async () => {
-      const r = await supabase.from("cuotas").select("socio_id").eq("periodo", `${periodo}-01`).eq("tipo", "cuota_social").neq("estado", "anulada");
-      return new Set((r.data || []).map((x) => x.socio_id));
-    },
+    queryFn: async () =>
+      unwrap(await supabase.rpc("cuotas_a_generar", { p_periodo: `${periodo}-01` })) as { socio_id: string; meses: number; monto: number; concepto: string }[],
   });
 
   const preview = useMemo(() => {
-    const activos = (socios || []).filter((s) => s.estado === "activo");
+    const lista = aGenerar || [];
     const precio = new Map((categorias || []).map((c) => [c.id, Number(c.cuota_mensual)]));
-    let n = 0, total = 0, sinCat = 0, sinPrecio = 0, ya = 0;
-    for (const s of activos) {
-      if (yaGeneradas?.has(s.id)) { ya++; continue; }
-      if (!s.categoria_id) { sinCat++; continue; }
-      const p = precio.get(s.categoria_id) || 0;
-      if (!p) { sinPrecio++; continue; }
-      n++;
-      total += p;
+    const activos = (socios || []).filter((s) => s.estado === "activo");
+    const porConcepto = new Map<string, { n: number; total: number }>();
+    for (const c of lista) {
+      const k = c.concepto.replace(/^Cuota social /, "");
+      const x = porConcepto.get(k) || { n: 0, total: 0 };
+      x.n++;
+      x.total += Number(c.monto);
+      porConcepto.set(k, x);
     }
-    return { n, total, sinCat, sinPrecio, ya };
-  }, [socios, categorias, yaGeneradas]);
+    return {
+      n: lista.length,
+      total: lista.reduce((a, c) => a + Number(c.monto), 0),
+      porConcepto: [...porConcepto.entries()].sort((a, b) => b[1].n - a[1].n),
+      sinCat: activos.filter((s) => !s.categoria_id).length,
+      sinPrecio: activos.filter((s) => s.categoria_id && !precio.get(s.categoria_id)).length,
+    };
+  }, [aGenerar, socios, categorias]);
 
   async function generar() {
     setSaving(true);
@@ -235,16 +241,18 @@ function GenerarModal({ open, onClose, onDone, toastFn }: { open: boolean; onClo
   }
 
   const [y, m] = periodo.split("-").map(Number);
+  const pers = (periodicidades || []).filter((p) => p.meses > 1);
 
   return (
     <Modal
       open={open}
       onClose={onClose}
+      size="lg"
       title="Generar cuotas sociales"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button loading={saving} disabled={!preview.n || !venc} onClick={generar}>Generar {preview.n} cuotas</Button>
+          <Button loading={saving} disabled={!preview.n || !venc || isFetching} onClick={generar}>Generar {preview.n} cuotas</Button>
         </>
       }
     >
@@ -258,16 +266,36 @@ function GenerarModal({ open, onClose, onDone, toastFn }: { open: boolean; onClo
           </Field>
         </div>
         <div className="rounded-lg bg-slate-50 p-3 text-sm">
-          <p>
-            Se va a generar la <b>Cuota social {MESES[m - 1]} {y}</b> para <b>{preview.n}</b> socios activos, por un total de{" "}
-            <b>{pesos(preview.total)}</b>. El monto de cada uno sale del valor de su categoría.
-          </p>
-          <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
-            {preview.ya > 0 && <li>• {preview.ya} socios ya tienen la cuota de este mes (no se duplica).</li>}
-            {preview.sinCat > 0 && <li className="text-amber-700">• {preview.sinCat} socios activos no tienen categoría y quedan afuera.</li>}
-            {preview.sinPrecio > 0 && <li className="text-amber-700">• {preview.sinPrecio} socios tienen una categoría con cuota en $0 y quedan afuera.</li>}
-          </ul>
+          {isFetching ? (
+            <Loading />
+          ) : (
+            <>
+              <p>
+                Para <b>{MESES[m - 1]} {y}</b> se van a generar <b>{preview.n}</b> cuotas por un total de <b>{pesos(preview.total)}</b>.
+                A cada socio se le cobra el período de su forma de pago que incluye este mes, salvo que ya lo tenga generado.
+              </p>
+              {preview.porConcepto.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-xs text-slate-700">
+                  {preview.porConcepto.map(([k, v]) => (
+                    <li key={k} className="flex justify-between gap-3"><span>• {k}: {v.n} socio{v.n > 1 ? "s" : ""}</span><span className="tabular-nums">{pesos(v.total)}</span></li>
+                  ))}
+                </ul>
+              )}
+              <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
+                {preview.n === 0 && <li>• Todos los socios ya tienen generado el período que incluye este mes.</li>}
+                {preview.sinCat > 0 && <li className="text-amber-700">• {preview.sinCat} socios activos no tienen categoría y quedan afuera.</li>}
+                {preview.sinPrecio > 0 && <li className="text-amber-700">• {preview.sinPrecio} socios tienen una categoría con valor $0 (ej. BANCOS o S) y quedan afuera.</li>}
+              </ul>
+            </>
+          )}
         </div>
+        {pers.length > 0 && (
+          <p className="text-xs text-slate-500">
+            Los socios mensuales pagan todos los meses; los bimestrales, trimestrales, semestrales y anuales, al comienzo de cada período
+            ({pers.map((p) => `${p.nombre.toLowerCase()} ${Number(p.descuento) ? `-${p.descuento}%` : "sin descuento"}`).join(" · ")}).
+            Podés generar todos los meses sin riesgo: nunca se duplica un período.
+          </p>
+        )}
         <ErrorBox error={error} />
       </div>
     </Modal>

@@ -11,7 +11,7 @@ export const POST = handle(async (req) => {
   const caller = await getCaller(req);
   requireStaff(caller, ["comercia"]);
 
-  const body = await readJson<{ asunto?: string; cuerpo?: string; rubro?: string; categoria_id?: string; soloContar?: boolean }>(req);
+  const body = await readJson<{ asunto?: string; cuerpo?: string; rubro?: string; categoria_id?: string; soloContar?: boolean; imagen_url?: string | null }>(req);
   const sb = supabaseAdmin();
 
   let q = sb.from("socios").select("id, razon_social, nombre_comercial, contacto_nombre, email").eq("estado", "activo").not("email", "is", null);
@@ -41,6 +41,7 @@ export const POST = handle(async (req) => {
     html: emailLayout({
       titulo: reemplazar(asunto, s),
       cuerpoHtml: textToHtml(reemplazar(cuerpo, s)),
+      imagenUrl: body.imagen_url,
       boton: { texto: "Ver ComercIA en el portal", url: `${env.portalUrl()}/comercia` },
       pie: "Beneficio del convenio ComercIA Inteligente (CeCIP + Instituto IEC).",
     }),

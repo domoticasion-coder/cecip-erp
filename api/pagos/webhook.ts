@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { handle, json } from "../_lib/core.js";
 import { procesarPagoMP } from "../_lib/pagos.js";
+import { procesarFacturas } from "../_lib/integraciones.js";
 
 /**
  * POST /api/pagos/webhook  — notificaciones de Mercado Pago.
@@ -32,6 +33,8 @@ export const POST = handle(async (req) => {
   }
 
   const result = await procesarPagoMP(paymentId);
+  // Si la facturación automática está activa, el cobro dejó la factura en cola: se envía a n8n / ARCA
+  if (result.estado === "acreditado") await procesarFacturas(url.origin).catch((e) => console.error("facturas", e));
   return json({ ok: true, ...result });
 });
 

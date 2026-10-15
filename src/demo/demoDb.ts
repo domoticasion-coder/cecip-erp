@@ -6,6 +6,8 @@
 import { PGlite } from "@electric-sql/pglite";
 import esquema from "../../supabase/migrations/001_esquema.sql?raw";
 import padron from "../../supabase/migrations/002_padron_inicial.sql?raw";
+import cambios005 from "../../supabase/migrations/005_cobros_alquileres_facturacion.sql?raw";
+import padron2026 from "../../supabase/migrations/006_padron_2026.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
@@ -47,27 +49,19 @@ update configuracion set
   cuenta_default_id = (select id from cuentas where nombre = 'Banco Entre Ríos')
 where id = 1;
 
-update categorias set cuota_mensual = case nombre
-  when 'Pequeño Comercio' then 8000 when 'Servicios' then 10000 when 'Mediana Empresa' then 15000 else 25000 end;
-
--- Categoría y estado de ejemplo para cada socio
-update socios s set categoria_id = (
-  select id from categorias where nombre = case
-    when abs(hashtext(s.razon_social)) % 20 < 12 then 'Pequeño Comercio'
-    when abs(hashtext(s.razon_social)) % 20 < 16 then 'Servicios'
-    when abs(hashtext(s.razon_social)) % 20 < 19 then 'Mediana Empresa'
-    else 'Gran Industria' end);
-update socios set estado = 'suspendido' where abs(hashtext(razon_social)) % 41 = 0;
+-- Categoría, forma de pago y meses pagos/adeudados vienen del Excel 2026 (migración 006)
+update configuracion set facturacion_auto = true, factura_punto_venta = 3, factura_condicion_emisor = 'exento' where id = 1;
 update socios set fecha_alta = date '2015-01-01' + (abs(hashtext(razon_social)) % 3500);
-update socios set cuit = '30-71234567-1', contacto_nombre = 'Juan Pérez' where numero_socio = 1960;
-update socios set cuit = '30-70987654-3' where numero_socio = 2611;
+update socios set cuit = null where cuit in ('30-71234567-1', '30-70987654-3');
+update socios set cuit = '30-71234567-1', contacto_nombre = 'Juan Pérez', estado = 'activo' where numero_socio = 1960;
+update socios set cuit = '30-70987654-3', estado = 'activo' where numero_socio = 2611;
 
--- Cuotas de los últimos 4 meses (como lo haría Tesorería)
+-- Cuotas del mes anterior y del actual que todavía no estaban en el Excel (como lo haría Tesorería)
 select set_config('request.jwt.claim.sub', '${U.admin.id}', false);
 select set_config('request.jwt.claims', '{"role":"authenticated"}', false);
 select generar_cuotas((date_trunc('month', current_date) - (k || ' months')::interval)::date,
                       (date_trunc('month', current_date) - (k || ' months')::interval)::date + 9)
-from generate_series(3, 0, -1) k;
+from generate_series(1, 0, -1) k;
 
 -- Pagos de ejemplo (como si entraran por caja, transferencia y Mercado Pago)
 select set_config('request.jwt.claim.sub', '', false);
@@ -75,7 +69,7 @@ select set_config('request.jwt.claims', '{"role":"service_role"}', false);
 do $$
 declare c record; h int; perfil int; meses int; pagar boolean; f date;
 begin
-  for c in select id, socio_id, periodo, vencimiento from cuotas where tipo = 'cuota_social' order by periodo, id loop
+  for c in select id, socio_id, periodo, vencimiento from cuotas where tipo = 'cuota_social' and not importada order by periodo, id loop
     h := abs(hashtext(c.id::text || 'p')) % 100;
     meses := (extract(year from age(date_trunc('month', current_date), c.periodo)) * 12
               + extract(month from age(date_trunc('month', current_date), c.periodo)))::int;
@@ -150,9 +144,77 @@ insert into socio_notas (socio_id, tipo, texto, autor_nombre, created_at)
 select id, 'reunion', 'Reunión en la sede: acordamos regularizar la deuda en dos pagos.', '${U.tesoreria.nombre}', now() - interval '12 days' from socios where numero_socio = 1960;
 `;
 
+// Datos de ejemplo de alquileres, facturación, banco y formularios públicos (migración 005)
+const SEED_005 = `
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+
+-- Alquileres: los tres inmuebles del CeCIP
+update inmuebles set nombre = 'Local planta baja', direccion = '25 de Mayo 28, PB (DEMO)', descripcion = 'Local comercial a la calle' where orden = 1;
+update inmuebles set nombre = 'Oficina 1° piso', direccion = '25 de Mayo 28, 1° piso, of. 3 (DEMO)' where orden = 2;
+update inmuebles set nombre = 'Salón de eventos', direccion = 'Urquiza 1050 (DEMO)', descripcion = 'Alquiler mensual a una academia' where orden = 3;
+insert into alquiler_contratos (inmueble_id, inquilino_nombre, inquilino_cuit, inquilino_condicion_iva, inquilino_email, inquilino_telefono,
+  fecha_inicio, fecha_fin, monto_mensual, dia_vencimiento, ajuste_indice, ajuste_cada_meses, proximo_ajuste, deposito)
+values
+  ((select id from inmuebles where orden = 1), 'Farmacia del Centro SRL', '30-71555666-2', 'RI', 'administracion@farmaciacentro.demo', '343 455-1122',
+   date_trunc('month', current_date)::date - interval '10 months', date_trunc('month', current_date)::date + interval '26 months', 850000, 10, 'icl', 6,
+   date_trunc('month', current_date)::date + interval '2 months', 1700000),
+  ((select id from inmuebles where orden = 2), 'Estudio Contable Ríos & Asoc.', '20-28777888-5', 'Monotributo', 'estudio@rios.demo', '343 466-7788',
+   date_trunc('month', current_date)::date - interval '6 months', null, 320000, 5, 'ipc', 3, current_date - 3, 640000),
+  ((select id from inmuebles where orden = 3), 'Academia de Danza Ritmo', '27-30111222-4', 'Monotributo', 'ritmo@academia.demo', '343 412-3344',
+   date_trunc('month', current_date)::date - interval '3 months', null, 410000, 10, 'porcentaje', 4, date_trunc('month', current_date)::date + interval '1 month', null);
+update alquiler_contratos set ajuste_porcentaje = 15 where ajuste_indice = 'porcentaje';
+
+select set_config('request.jwt.claim.sub', '${U.admin.id}', false);
+select set_config('request.jwt.claims', '{"role":"authenticated"}', false);
+select generar_alquileres((date_trunc('month', current_date) - (k || ' months')::interval)::date) from generate_series(2, 0, -1) k;
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+select registrar_pago_alquiler(id, 'Transferencia', (select id from cuentas where nombre = 'Banco Santander'), vencimiento - 2)
+from alquiler_cargos where vencimiento < date_trunc('month', current_date)
+  and contrato_id <> (select id from alquiler_contratos where inquilino_nombre like 'Academia%');
+
+-- Facturas: las de los cobros de ejemplo quedan emitidas con CAE (en producción las emite n8n en ARCA)
+update facturas f set estado = 'emitida', punto_venta = 3, numero = x.n, cae = '7' || lpad((x.n * 7919)::text, 13, '0'),
+  cae_vencimiento = f.fecha + 10, enviada_at = f.created_at, emitida_at = f.created_at
+from (select id, 1000 + row_number() over (order by created_at, id) as n from facturas) x where x.id = f.id;
+update facturas set estado = 'en_cola', numero = null, cae = null, cae_vencimiento = null, emitida_at = null
+where id in (select id from facturas order by created_at desc, id limit 2);
+update facturas set estado = 'error', numero = null, cae = null, cae_vencimiento = null, emitida_at = null,
+  error = '10015: El documento del receptor no es válido (DEMO)'
+where id = (select id from facturas where estado = 'emitida' order by created_at desc, id limit 1);
+
+-- Movimientos de la cuenta Santander (como si los trajera n8n): créditos de socios y gastos bancarios
+insert into banco_movimientos (banco, cuenta_id, id_externo, fecha, descripcion, monto, saldo, referencia, contraparte_nombre, contraparte_cuit)
+select 'Santander', (select id from cuentas where nombre = 'Banco Santander'), 'DEMO-' || row_number() over (), current_date - ((row_number() over ()) % 6)::int,
+       'TRANSFERENCIA RECIBIDA ' || s.razon_social, c.total, null, 'TRF' || (900000 + row_number() over ()), s.razon_social, s.cuit
+from (select distinct on (socio_id) socio_id, total from cuotas_detalle where estado = 'pendiente' and tipo = 'cuota_social' order by socio_id, vencimiento) c
+join socios s on s.id = c.socio_id and s.cuit is not null
+order by s.razon_social limit 4;
+insert into banco_movimientos (banco, cuenta_id, id_externo, fecha, descripcion, monto, saldo, referencia) values
+  ('Santander', (select id from cuentas where nombre = 'Banco Santander'), 'DEMO-COM', current_date - 2, 'COMISION MANTENIMIENTO CUENTA EMPRESA', -12850, 4825300, 'COM102'),
+  ('Santander', (select id from cuentas where nombre = 'Banco Santander'), 'DEMO-IMP', current_date - 2, 'IMPUESTO LEY 25413 DEBITOS', -2310.55, 4838150, 'IMP77'),
+  ('Santander', (select id from cuentas where nombre = 'Banco Santander'), 'DEMO-ALQ', current_date - 1, 'TRANSFERENCIA RECIBIDA ACADEMIA DE DANZA RITMO', 410000, 5248150, 'TRF55511');
+
+-- Formulario público de inscripción para no socios
+select set_config('request.jwt.claims', '', false);
+reset role;
+update eventos set formulario_publico = true, imagen_url = null,
+  preguntas = '[{"id":"rubro","etiqueta":"¿A qué rubro pertenece tu empresa?","tipo":"opciones","opciones":["Comercio","Industria","Servicios","Otro"],"requerida":true},{"id":"empleados","etiqueta":"¿Tenés empleados a cargo?","tipo":"si_no","requerida":false}]'
+where titulo = 'Liquidación de sueldos para comercios';
+insert into inscripciones (evento_id, asistente_nombre, asistente_email, asistente_telefono, empresa, es_socio, origen, respuestas)
+select id, x.nombre, x.email, x.tel, x.empresa, false, 'publico', x.resp::jsonb
+from eventos, (values
+  ('Lucía Benítez', 'lucia.benitez@mail.demo', '343 600-1111', 'Kiosco La Esquina', '{"rubro":"Comercio","empleados":"No"}'),
+  ('Martín Acosta', 'martin@panaderia.demo', '343 600-2222', 'Panadería San Martín', '{"rubro":"Industria","empleados":"Sí"}'),
+  ('Carolina Díaz', 'caro.diaz@mail.demo', null, null, '{"rubro":"Servicios"}')
+) as x(nombre, email, tel, empresa, resp)
+where titulo = 'Liquidación de sueldos para comercios';
+`;
+
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v9";
+const IDB_NAME = "cecip-demo-v10";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -165,7 +227,12 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(AUTH_STUBS);
         await db.exec(esquema);
         await db.exec(padron);
+        await db.exec(cambios005);
+        // En la demo BANCOS y S tienen valor para que se vean sus cuotas (en producción se cargan en Configuración)
+        await db.exec(`update categorias set cuota_mensual = 20000 where nombre = 'BANCOS'; update categorias set cuota_mensual = 3000 where nombre = 'S';`);
+        await db.exec(padron2026);
         await db.exec(SEED);
+        await db.exec(SEED_005);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;

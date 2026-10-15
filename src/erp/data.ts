@@ -1,11 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, unwrap } from "../lib/supabase";
-import type { Categoria, Configuracion, Cuenta } from "../lib/types";
+import { api } from "../lib/api";
+import type { Categoria, Configuracion, Cuenta, Periodicidad } from "../lib/types";
 
 export function useCategorias() {
   return useQuery({
     queryKey: ["categorias"],
     queryFn: async () => unwrap(await supabase.from("categorias").select("*").order("orden").order("nombre")) as Categoria[],
+  });
+}
+
+export function usePeriodicidades() {
+  return useQuery({
+    queryKey: ["periodicidades"],
+    queryFn: async () => unwrap(await supabase.from("periodicidades").select("*").order("orden")) as Periodicidad[],
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -32,6 +41,8 @@ export interface SocioMin {
   email: string | null;
   whatsapp: string | null;
   categoria_id: string | null;
+  periodicidad: string;
+  seguimiento: string | null;
 }
 
 /** Lista liviana de socios para selectores y filtros */
@@ -42,7 +53,7 @@ export function useSociosMin() {
       unwrap(
         await supabase
           .from("socios")
-          .select("id, razon_social, nombre_comercial, numero_socio, estado, email, whatsapp, categoria_id")
+          .select("id, razon_social, nombre_comercial, numero_socio, estado, email, whatsapp, categoria_id, periodicidad, seguimiento")
           .order("razon_social")
       ) as SocioMin[],
   });
@@ -52,4 +63,13 @@ export function useSociosMin() {
 export function useInvalidate() {
   const qc = useQueryClient();
   return (...keys: string[]) => Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: [k] })));
+}
+
+/** Envía a n8n / ARCA las facturas en cola (no interrumpe si n8n no está configurado o falla) */
+export async function enviarFacturasEnCola(ids?: string[]) {
+  try {
+    return await api<{ enviadas: number; emitidas: number; errores: number; sinConfigurar?: boolean }>("integraciones/facturas-procesar", { ids });
+  } catch {
+    return null;
+  }
 }

@@ -6,9 +6,9 @@ import { supabase, traducirError, unwrap } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { descargarCSV, parseCSV } from "../../lib/csv";
 import { formatCuit, nombreSocio, pesos } from "../../lib/format";
-import type { SocioResumen } from "../../lib/types";
+import { SEGUIMIENTOS, type Seguimiento, type SocioResumen } from "../../lib/types";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, SituacionBadge, Table, useToast } from "../../components/ui";
-import { useCategorias, useInvalidate } from "../data";
+import { useCategorias, useInvalidate, usePeriodicidades } from "../data";
 import { SocioForm } from "../components/SocioForm";
 import { EnviarEmailModal } from "../components/EnviarEmail";
 
@@ -28,16 +28,20 @@ export default function Socios() {
   const [params, setParams] = useSearchParams();
   const { data: socios, isLoading } = useSociosResumen();
   const { data: categorias } = useCategorias();
+  const { data: periodicidades } = usePeriodicidades();
 
   const [q, setQ] = useState("");
   const estado = params.get("estado") || "activo";
   const categoria = params.get("categoria") || "";
   const filtro = params.get("filtro") || "";
+  const periodicidad = params.get("pago") || "";
+  const seguimiento = params.get("seguimiento") || "";
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [nuevo, setNuevo] = useState(false);
   const [importar, setImportar] = useState(false);
   const [email, setEmail] = useState(false);
   const [bulkCat, setBulkCat] = useState("");
+  const [bulkPer, setBulkPer] = useState("");
 
   const setParam = (k: string, v: string) => {
     const p = new URLSearchParams(params);
@@ -52,6 +56,8 @@ export default function Socios() {
     return (socios || []).filter((s) => {
       if (estado && s.estado !== estado) return false;
       if (categoria && s.categoria_id !== categoria) return false;
+      if (periodicidad && s.periodicidad !== periodicidad) return false;
+      if (seguimiento && (seguimiento === "ninguno" ? s.seguimiento : s.seguimiento !== seguimiento)) return false;
       if (filtro === "sin-categoria" && s.categoria_id) return false;
       if (filtro === "con-deuda" && !(s.deuda > 0)) return false;
       if (filtro === "vencidas" && !(s.cuotas_vencidas > 0)) return false;
@@ -66,7 +72,7 @@ export default function Socios() {
         String(s.numero_socio || "") === t
       );
     });
-  }, [socios, q, estado, categoria, filtro]);
+  }, [socios, q, estado, categoria, filtro, periodicidad, seguimiento]);
 
   const allSelected = lista.length > 0 && lista.every((s) => sel.has(s.id));
   const toggleAll = () => setSel(allSelected ? new Set() : new Set(lista.map((s) => s.id)));
@@ -86,6 +92,16 @@ export default function Socios() {
     invalidate("socios", "socios-min");
   }
 
+  async function asignarPeriodicidad() {
+    if (!bulkPer || sel.size === 0) return;
+    const { error } = await supabase.from("socios").update({ periodicidad: bulkPer }).in("id", [...sel]);
+    if (error) return toast(traducirError(error.message), "error");
+    toast(`Forma de pago actualizada en ${sel.size} socios.`);
+    setBulkPer("");
+    setSel(new Set());
+    invalidate("socios", "socios-min");
+  }
+
   function exportar() {
     descargarCSV("socios-cecip", lista.map((s) => ({ ...s, cuit: formatCuit(s.cuit) })) as any, [
       { key: "numero_socio", label: "N° socio" },
@@ -93,6 +109,10 @@ export default function Socios() {
       { key: "nombre_comercial", label: "Nombre de fantasía" },
       { key: "cuit", label: "CUIT" },
       { key: "categoria_nombre", label: "Categoría" },
+      { key: "periodicidad_nombre", label: "Forma de pago" },
+      { key: "cuota_periodo", label: "Cuota del período" },
+      { key: "condicion_iva", label: "Condición IVA" },
+      { key: "seguimiento", label: "Seguimiento" },
       { key: "estado", label: "Estado" },
       { key: "rubro", label: "Rubro" },
       { key: "email", label: "Email" },
@@ -144,6 +164,15 @@ export default function Socios() {
             <option value="sin-categoria">Sin categoría</option>
             <option value="sin-email">Sin email</option>
           </Select>
+          <Select className="w-auto" value={periodicidad} onChange={(e) => setParam("pago", e.target.value)}>
+            <option value="">Todas las formas de pago</option>
+            {periodicidades?.map((p) => <option key={p.codigo} value={p.codigo}>{p.nombre}</option>)}
+          </Select>
+          <Select className="w-auto" value={seguimiento} onChange={(e) => setParam("seguimiento", e.target.value)}>
+            <option value="">Todo seguimiento</option>
+            {Object.entries(SEGUIMIENTOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            <option value="ninguno">Sin marca</option>
+          </Select>
         </div>
 
         {sel.size > 0 && (
@@ -158,6 +187,11 @@ export default function Socios() {
                   <option value="ninguna">Quitar categoría</option>
                 </Select>
                 <Button size="sm" disabled={!bulkCat} onClick={asignarCategoria}>Aplicar</Button>
+                <Select className="w-auto py-1 text-xs" value={bulkPer} onChange={(e) => setBulkPer(e.target.value)}>
+                  <option value="">Cambiar forma de pago…</option>
+                  {periodicidades?.map((p) => <option key={p.codigo} value={p.codigo}>{p.nombre}</option>)}
+                </Select>
+                <Button size="sm" disabled={!bulkPer} onClick={asignarPeriodicidad}>Aplicar</Button>
               </>
             )}
             <button className="ml-auto text-xs text-slate-500 hover:underline" onClick={() => setSel(new Set())}>Limpiar selección</button>
@@ -196,12 +230,16 @@ export default function Socios() {
                   </td>
                   <td className="td hidden md:table-cell">
                     {s.categoria_nombre ? <span className="text-sm">{s.categoria_nombre}</span> : <Badge tone="amber">Sin categoría</Badge>}
+                    <div className="text-xs text-slate-500">{s.periodicidad_nombre}{s.cuota_periodo ? ` · ${pesos(s.cuota_periodo)}` : ""}</div>
                   </td>
                   <td className="td hidden text-xs text-slate-500 lg:table-cell">
                     <div>{s.email || <span className="text-amber-600">sin email</span>}</div>
                     <div>{s.whatsapp || s.telefono}</div>
                   </td>
-                  <td className="td"><SituacionBadge s={s.estado} /></td>
+                  <td className="td">
+                    <SituacionBadge s={s.estado} />
+                    {s.seguimiento && <div className="mt-0.5"><Badge tone={SEGUIMIENTOS[s.seguimiento as Seguimiento].tone}>{SEGUIMIENTOS[s.seguimiento as Seguimiento].label}</Badge></div>}
+                  </td>
                   <td className="td text-right tabular-nums">
                     {s.deuda > 0 ? (
                       <div>

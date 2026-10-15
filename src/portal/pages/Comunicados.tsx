@@ -38,6 +38,11 @@ export default function Comunicados() {
               {c.destacado && <Badge tone="amber">Importante</Badge>}
             </div>
             <div className="mb-3 text-xs text-slate-400">{fechaHora(c.fecha_publicacion)}</div>
+            {c.imagen_url && (
+              <a href={c.imagen_url} target="_blank" rel="noopener noreferrer">
+                <img src={c.imagen_url} alt="" className="mb-3 max-h-[28rem] w-full rounded-lg object-contain bg-slate-50" />
+              </a>
+            )}
             <TextoConLinks texto={c.cuerpo} />
           </div>
         </Card>

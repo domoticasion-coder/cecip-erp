@@ -6,6 +6,7 @@ import { useAuth } from "../../lib/auth";
 import { normalizarWhatsapp } from "../../lib/whatsapp";
 import { ICONOS_CONTENIDO } from "../../../shared/comercia";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Tabs, Textarea, useToast } from "../../components/ui";
+import { ImagenInput } from "../../components/ImagenInput";
 import { useConfig, useInvalidate } from "../data";
 
 /*
@@ -61,7 +62,7 @@ export default function Contenido() {
 export type Campo = {
   key: string;
   label: string;
-  tipo: "texto" | "parrafo" | "lista" | "icono" | "si_no" | "fecha" | "opciones";
+  tipo: "texto" | "parrafo" | "lista" | "icono" | "si_no" | "fecha" | "opciones" | "imagen";
   opciones?: { valor: string; etiqueta: string }[];
   ayuda?: string;
   requerido?: boolean;
@@ -316,7 +317,11 @@ function FormularioContenido({ def, valor, total, onClose, onSaved }: {
     <Modal open={!!valor} onClose={onClose} size="lg" title={`${valor === "nuevo" ? "Agregar" : "Editar"} ${def.singular}`}
       footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={saving} onClick={guardar}>Guardar</Button></>}>
       <div className="grid gap-3 sm:grid-cols-2">
-        {def.campos.map((c) => (
+        {def.campos.map((c) => c.tipo === "imagen" ? (
+          <div key={c.key} className="sm:col-span-2">
+            <ImagenInput label={c.label} hint={c.ayuda} value={f[c.key] || null} onChange={(url) => setF({ ...f, [c.key]: url || "" })} carpeta="contenido" />
+          </div>
+        ) : (
           <Field key={c.key} label={c.label + (c.requerido ? " *" : "")} hint={c.ayuda} className={c.ancho === "completo" || c.tipo === "parrafo" || c.tipo === "lista" ? "sm:col-span-2" : ""}>
             {c.tipo === "texto" && <Input value={f[c.key] || ""} onChange={(e) => setF({ ...f, [c.key]: e.target.value })} />}
             {c.tipo === "parrafo" && <Textarea rows={def.tabla === "conocimiento_cecip" ? 14 : 3} value={f[c.key] || ""} onChange={(e) => setF({ ...f, [c.key]: e.target.value })} />}

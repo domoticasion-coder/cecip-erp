@@ -4,6 +4,7 @@ import { Mail, Send } from "lucide-react";
 import { supabase, unwrap } from "../../lib/supabase";
 import { api } from "../../lib/api";
 import { Button, Card, ErrorBox, Field, Input, PageHeader, Select, Tabs, Textarea, useToast } from "../../components/ui";
+import { ImagenInput } from "../../components/ImagenInput";
 import { useCategorias } from "../data";
 import { Editor, type Definicion } from "./Contenido";
 import { WhatsappCampanas } from "../components/WhatsappCampanas";
@@ -22,6 +23,7 @@ const NOVEDADES: Definicion = {
   campos: [
     { key: "titulo", label: "Título", tipo: "texto", requerido: true, ancho: "completo" },
     { key: "cuerpo", label: "Texto", tipo: "parrafo", requerido: true, ancho: "completo" },
+    { key: "imagen_url", label: "Imagen (opcional)", tipo: "imagen", ancho: "completo" },
   ],
 };
 
@@ -42,7 +44,7 @@ export default function DifusionComercia() {
   );
 }
 
-type Base = { id: string; titulo: string; texto: string };
+type Base = { id: string; titulo: string; texto: string; imagen?: string | null };
 
 function EmailComercia() {
   const toast = useToast();
@@ -51,6 +53,7 @@ function EmailComercia() {
   const [categoria, setCategoria] = useState("");
   const [asunto, setAsunto] = useState("");
   const [cuerpo, setCuerpo] = useState("");
+  const [imagen, setImagen] = useState<string | null>(null);
   const [cantidad, setCantidad] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,10 +63,10 @@ function EmailComercia() {
     queryKey: ["comercia-bases-email"],
     queryFn: async () => {
       const [n, p] = await Promise.all([
-        supabase.from("comercia_novedades").select("id, titulo, cuerpo").eq("publicada", true).order("orden"),
+        supabase.from("comercia_novedades").select("id, titulo, cuerpo, imagen_url").eq("publicada", true).order("orden"),
         supabase.from("comercia_promociones").select("id, titulo, descuento, descripcion, condiciones").eq("activa", true).order("orden"),
       ]);
-      const novedades: Base[] = (unwrap(n) as any[]).map((x) => ({ id: "n" + x.id, titulo: x.titulo, texto: x.cuerpo }));
+      const novedades: Base[] = (unwrap(n) as any[]).map((x) => ({ id: "n" + x.id, titulo: x.titulo, texto: x.cuerpo, imagen: x.imagen_url }));
       const promos: Base[] = (unwrap(p) as any[]).map((x) => ({
         id: "p" + x.id,
         titulo: x.descuento ? `${x.descuento} · ${x.titulo}` : x.titulo,
@@ -89,6 +92,7 @@ function EmailComercia() {
     const b = [...(bases?.novedades || []), ...(bases?.promos || [])].find((x) => x.id === id);
     if (!b) return;
     setAsunto(b.titulo);
+    setImagen(b.imagen || null);
     setCuerpo(`Hola {{nombre}},\n\n${b.texto}\n\nEntrá a la sección ComercIA del Portal de Socios y tocá "Quiero sumarme" o "¡La quiero!" para que te asesoremos.`);
   }
 
@@ -98,7 +102,7 @@ function EmailComercia() {
     setEnviando(true);
     setError(null);
     try {
-      const r = await api<{ enviados: number; errores: number }>("comercia/difundir", { asunto, cuerpo, rubro, categoria_id: categoria || undefined });
+      const r = await api<{ enviados: number; errores: number }>("comercia/difundir", { asunto, cuerpo, rubro, categoria_id: categoria || undefined, imagen_url: imagen });
       toast(`Emails enviados: ${r.enviados}.` + (r.errores ? ` No se pudieron enviar: ${r.errores}.` : ""), r.enviados ? "ok" : "error");
     } catch (e) {
       setError((e as Error).message);
@@ -142,6 +146,7 @@ function EmailComercia() {
           <Field label="Mensaje" hint={<>Variables: <code>{"{{nombre}}"}</code> y <code>{"{{empresa}}"}</code>. El email incluye un botón para ir a ComercIA en el portal.</>}>
             <Textarea rows={10} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} />
           </Field>
+          <ImagenInput value={imagen} onChange={setImagen} carpeta="comercia" hint="Se muestra debajo del título del email." />
           <ErrorBox error={error} />
           <div className="flex justify-end">
             <Button icon={enviando ? <Mail className="h-4 w-4" /> : <Send className="h-4 w-4" />} loading={enviando} disabled={!cantidad} onClick={enviar}>

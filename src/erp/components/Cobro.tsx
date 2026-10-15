@@ -7,9 +7,9 @@ import { hoyISO, nombreSocio, pesos, fecha } from "../../lib/format";
 import { abrirWhatsapp, normalizarWhatsapp } from "../../lib/whatsapp";
 import { METODOS_PAGO, type CuotaDetalle } from "../../lib/types";
 import { Button, ErrorBox, Field, Input, Modal, Select, useToast } from "../../components/ui";
-import { useConfig, useCuentas, useInvalidate } from "../data";
+import { enviarFacturasEnCola, useConfig, useCuentas, useInvalidate } from "../data";
 
-export const INVALIDAR_COBRO = ["cuotas", "socios", "socio", "dashboard", "movimientos", "morosos", "notas"];
+export const INVALIDAR_COBRO = ["cuotas", "socios", "socio", "dashboard", "movimientos", "morosos", "notas", "facturas"];
 
 /** Modal para registrar el cobro manual de una cuota (efectivo, transferencia, etc.) */
 export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onClose: () => void }) {
@@ -56,8 +56,10 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
     });
     setSaving(false);
     if (error) return setError(traducirError(error.message));
+    // Con la facturación automática activa el cobro deja la factura en cola: se envía a n8n / ARCA
+    if (cfg?.facturacion_auto) enviarFacturasEnCola().then(() => invalidate("facturas"));
     await invalidate(...INVALIDAR_COBRO);
-    toast(`Pago registrado. Recibo N° ${data.recibo_numero}.`);
+    toast(`Pago registrado. Recibo N° ${data.recibo_numero}.${cfg?.facturacion_auto ? " La factura se está emitiendo." : ""}`);
     onClose();
   }
 

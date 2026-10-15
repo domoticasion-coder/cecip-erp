@@ -2,6 +2,7 @@ import { HttpError, env } from "./core.js";
 
 export interface EmailMessage {
   to: string;
+  cc?: string[];
   subject: string;
   html: string;
   text?: string;
@@ -38,6 +39,7 @@ export function emailLayout(opts: {
   cuerpoHtml: string;
   boton?: { texto: string; url: string };
   pie?: string;
+  imagenUrl?: string | null;
 }): string {
   const logo = `${env.portalUrl()}/logo.png`;
   const boton = opts.boton
@@ -49,6 +51,7 @@ export function emailLayout(opts: {
 <tr><td style="background:#0f3d75;padding:18px 28px"><img src="${logo}" alt="CeCIP Paraná" height="40" style="display:block;height:40px"></td></tr>
 <tr><td style="padding:28px;font-size:15px;line-height:1.55">
 <h1 style="font-size:20px;margin:0 0 18px;color:#0f3d75">${escapeHtml(opts.titulo)}</h1>
+${opts.imagenUrl && /^https:\/\//.test(opts.imagenUrl) ? `<img src="${escapeHtml(opts.imagenUrl)}" alt="" style="display:block;max-width:100%;height:auto;border-radius:8px;margin:0 0 18px">` : ""}
 ${opts.cuerpoHtml}
 ${boton}
 </td></tr>
@@ -77,6 +80,7 @@ export async function sendEmails(messages: EmailMessage[]): Promise<SendResult[]
           chunk.map((m) => ({
             from,
             to: [m.to],
+            cc: m.cc?.length ? m.cc : undefined,
             subject: m.subject,
             html: m.html,
             text: m.text,

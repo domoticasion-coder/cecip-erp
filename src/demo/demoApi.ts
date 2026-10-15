@@ -101,6 +101,52 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
       return { enviados: socios.length, errores: 0 };
     }
 
+    // Facturación ARCA vía n8n: en la demo se simula la respuesta con un CAE de prueba
+    case "integraciones/estado":
+      return {
+        facturas: true, banco: true, secreto: true,
+        callback_facturas: `${window.location.origin}/api/integraciones/facturas-callback (DEMO)`,
+        endpoint_banco: `${window.location.origin}/api/integraciones/banco-movimientos (DEMO)`,
+      };
+
+    case "integraciones/facturas-procesar": {
+      const [st] = await q(comoYo, "select rol from staff where user_id = auth.uid()");
+      if (!["tesoreria", "admin"].includes(st?.rol)) throw new Error("Tu rol no tiene permiso para esta acción.");
+      let sql = "select id, receptor_cuit, punto_venta, tipo from facturas";
+      sql += body.ids?.length ? ` where id in ${ids(body.ids)} and estado in ('en_cola', 'error')` : " where estado = 'en_cola'";
+      const facturas = await q(SERVICIO, sql + " order by created_at limit 40");
+      let emitidas = 0, errores = 0;
+      for (const f of facturas) {
+        const cuit = String(f.receptor_cuit || "").replace(/\D/g, "");
+        if (cuit && cuit.length !== 11) {
+          errores++;
+          await q(SERVICIO, `update facturas set estado = 'error', intentos = intentos + 1, error = '10015: El documento del receptor no es válido (DEMO)' where id = ${lit(f.id)}`);
+          continue;
+        }
+        emitidas++;
+        await q(SERVICIO, `update facturas set estado = 'emitida', intentos = intentos + 1, enviada_at = now(), emitida_at = now(), error = null,
+          numero = coalesce((select max(numero) from facturas where tipo = ${lit(f.tipo)}), 1000) + 1,
+          punto_venta = coalesce(punto_venta, 3),
+          cae = '7' || lpad((floor(random() * 1e13))::bigint::text, 13, '0'), cae_vencimiento = current_date + 10
+          where id = ${lit(f.id)}`);
+      }
+      return { enviadas: facturas.length, emitidas, errores };
+    }
+
+    case "integraciones/banco-sincronizar": {
+      const hoy = new Date().toISOString().slice(0, 10);
+      const socios = await q(SERVICIO, `select s.razon_social, s.cuit, c.total from cuotas_detalle c join socios s on s.id = c.socio_id
+        where c.estado = 'pendiente' and s.cuit is not null order by random() limit 3`);
+      const filas = [
+        ...socios.map((s: any, i: number) => `('Santander', (select id from cuentas where nombre = 'Banco Santander'), 'DEMO-${Date.now()}-${i}', '${hoy}',
+          ${lit("TRANSFERENCIA RECIBIDA " + s.razon_social)}, ${Number(s.total)}, ${lit(s.razon_social)}, ${lit(s.cuit)})`),
+        `('Santander', (select id from cuentas where nombre = 'Banco Santander'), 'DEMO-${Date.now()}-c', '${hoy}', 'COMISION MANTENIMIENTO CUENTA', -8450, null, null)`,
+      ];
+      const nuevos = await q(SERVICIO, `insert into banco_movimientos (banco, cuenta_id, id_externo, fecha, descripcion, monto, contraparte_nombre, contraparte_cuit)
+        values ${filas.join(", ")} on conflict do nothing returning id`);
+      return { recibidos: filas.length, nuevos: nuevos.length };
+    }
+
     case "comunicaciones/variantes": {
       const res = await fetch("/dev-api/variantes", {
         method: "POST",

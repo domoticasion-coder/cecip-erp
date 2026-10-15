@@ -38,7 +38,7 @@ function useContenidoComercia() {
         supabase.from("iec_cursos").select("*").eq("activo", true).order("orden"),
         supabase.from("comercia_promociones").select("*").eq("activa", true).or(`vigente_hasta.is.null,vigente_hasta.gte.${hoyISO()}`).order("orden"),
         supabase.from("comercia_convenio").select("*").eq("activo", true).order("orden"),
-        supabase.from("comercia_novedades").select("id, titulo, cuerpo, created_at").eq("publicada", true).order("orden").order("created_at", { ascending: false }),
+        supabase.from("comercia_novedades").select("id, titulo, cuerpo, imagen_url, created_at").eq("publicada", true).order("orden").order("created_at", { ascending: false }),
       ]);
       const promociones = (p.data || []) as PromocionComercia[];
       return {
@@ -46,7 +46,7 @@ function useContenidoComercia() {
         // Las destacadas primero
         promociones: [...promociones].sort((x, y) => Number(y.destacada) - Number(x.destacada)),
         convenio: (b.data || []) as BloqueConvenio[],
-        novedades: (n.data || []) as { id: string; titulo: string; cuerpo: string; created_at: string }[],
+        novedades: (n.data || []) as { id: string; titulo: string; cuerpo: string; imagen_url: string | null; created_at: string }[],
       };
     },
   });

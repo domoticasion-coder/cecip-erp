@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Save, Trash2, UserPlus } from "lucide-react";
+import { Plus, RefreshCw, Save, Trash2, UserPlus } from "lucide-react";
 import { supabase, traducirError, unwrap } from "../../lib/supabase";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { pesos } from "../../lib/format";
 import { ROLES, type Configuracion as Config, type Rol, type Staff } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Table, Tabs, useToast } from "../../components/ui";
-import { useCategorias, useConfig, useCuentas, useInvalidate } from "../data";
+import { useCategorias, useConfig, useCuentas, useInvalidate, usePeriodicidades } from "../data";
 
 type Tab = "cuotas" | "institucion" | "cuentas" | "personal";
 
@@ -43,33 +43,58 @@ function useGuardarConfig() {
 
 function Categorias() {
   const { data } = useCategorias();
+  const { data: periodicidades } = usePeriodicidades();
   const toast = useToast();
   const invalidate = useInvalidate();
   const [edit, setEdit] = useState<Record<string, { nombre: string; cuota_mensual: string }>>({});
+  const [desc, setDesc] = useState<Record<string, string>>({});
   const [nuevo, setNuevo] = useState({ nombre: "", cuota_mensual: "" });
+  const [recalculando, setRecalculando] = useState(false);
 
   useEffect(() => {
     if (data) setEdit(Object.fromEntries(data.map((c) => [c.id, { nombre: c.nombre, cuota_mensual: String(c.cuota_mensual) }])));
   }, [data]);
+  useEffect(() => {
+    if (periodicidades) setDesc(Object.fromEntries(periodicidades.map((p) => [p.codigo, String(p.descuento)])));
+  }, [periodicidades]);
+
+  const num = (v: string | undefined) => Number(String(v ?? "").replace(",", ".")) || 0;
 
   async function guardar() {
     for (const c of data || []) {
       const e = edit[c.id];
       if (!e) continue;
-      const monto = Number(e.cuota_mensual.replace(",", "."));
+      const monto = num(e.cuota_mensual);
       if (e.nombre !== c.nombre || monto !== Number(c.cuota_mensual)) {
-        const { error } = await supabase.from("categorias").update({ nombre: e.nombre.trim(), cuota_mensual: monto || 0 }).eq("id", c.id);
+        const { error } = await supabase.from("categorias").update({ nombre: e.nombre.trim(), cuota_mensual: monto }).eq("id", c.id);
         if (error) return toast(traducirError(error.message), "error");
       }
     }
-    toast("Categorías guardadas. Los nuevos valores se aplican a las próximas cuotas que generes.");
-    invalidate("categorias", "socios");
+    for (const p of periodicidades || []) {
+      const d = num(desc[p.codigo]);
+      if (d !== Number(p.descuento)) {
+        const { error } = await supabase.from("periodicidades").update({ descuento: d }).eq("codigo", p.codigo);
+        if (error) return toast(traducirError(error.message), "error");
+      }
+    }
+    toast("Valores guardados. Se aplican a las próximas cuotas que generes (para las pendientes usá «Recalcular cuotas pendientes»).");
+    invalidate("categorias", "periodicidades", "socios");
+  }
+
+  async function recalcular() {
+    if (!confirm("¿Actualizar el importe de TODAS las cuotas sociales pendientes con los valores actuales? Las cuotas pagadas no se modifican.")) return;
+    setRecalculando(true);
+    const { data: n, error } = await supabase.rpc("recalcular_cuotas_pendientes", {});
+    setRecalculando(false);
+    if (error) return toast(traducirError(error.message), "error");
+    toast(n ? `Se actualizaron ${n} cuotas pendientes.` : "Las cuotas pendientes ya estaban con los valores actuales.");
+    invalidate("cuotas", "socios", "dashboard");
   }
 
   async function agregar() {
     if (!nuevo.nombre.trim()) return;
     const { error } = await supabase.from("categorias").insert({
-      nombre: nuevo.nombre.trim(), cuota_mensual: Number(nuevo.cuota_mensual.replace(",", ".")) || 0, orden: (data?.length || 0) + 1,
+      nombre: nuevo.nombre.trim(), cuota_mensual: num(nuevo.cuota_mensual), orden: (data?.length || 0) + 1,
     });
     if (error) return toast(traducirError(error.message), "error");
     setNuevo({ nombre: "", cuota_mensual: "" });
@@ -83,28 +108,69 @@ function Categorias() {
     invalidate("categorias", "socios");
   }
 
+  const pers = (periodicidades || []).filter((p) => p.meses > 1);
   return (
-    <Card title="Categorías de socio y valor de la cuota mensual" actions={<Button size="sm" icon={<Save className="h-3.5 w-3.5" />} onClick={guardar}>Guardar cambios</Button>}>
+    <Card
+      title="Categorías y valor de la cuota"
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" loading={recalculando} icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={recalcular}>Recalcular cuotas pendientes</Button>
+          <Button size="sm" icon={<Save className="h-3.5 w-3.5" />} onClick={guardar}>Guardar cambios</Button>
+        </div>
+      }
+    >
       <Table>
-        <thead className="bg-slate-50"><tr><th className="th">Categoría</th><th className="th">Cuota mensual ($)</th><th className="th"></th></tr></thead>
+        <thead className="bg-slate-50">
+          <tr>
+            <th className="th">Categoría</th>
+            <th className="th">Valor mensual ($)</th>
+            {pers.map((p) => (
+              <th key={p.codigo} className="th text-right">
+                {p.nombre}
+                <div className="mt-1 flex items-center justify-end gap-1 font-normal normal-case">
+                  <span className="text-[11px]">desc.</span>
+                  <input
+                    className="input w-14 px-1.5 py-0.5 text-right text-xs" inputMode="decimal" title={`Descuento ${p.nombre.toLowerCase()} (%)`}
+                    value={desc[p.codigo] ?? ""} onChange={(e) => setDesc({ ...desc, [p.codigo]: e.target.value })}
+                  />
+                  <span className="text-[11px]">%</span>
+                </div>
+              </th>
+            ))}
+            <th className="th"></th>
+          </tr>
+        </thead>
         <tbody className="divide-y divide-slate-100">
-          {data?.map((c) => (
-            <tr key={c.id}>
-              <td className="td"><Input value={edit[c.id]?.nombre || ""} onChange={(e) => setEdit({ ...edit, [c.id]: { ...edit[c.id], nombre: e.target.value } })} /></td>
-              <td className="td">
-                <Input inputMode="decimal" value={edit[c.id]?.cuota_mensual || ""} onChange={(e) => setEdit({ ...edit, [c.id]: { ...edit[c.id], cuota_mensual: e.target.value } })} />
-                {Number(c.cuota_mensual) === 0 && <span className="text-xs text-amber-700">Sin valor: no se generan cuotas</span>}
-              </td>
-              <td className="td text-right"><button onClick={() => borrar(c.id)} className="text-slate-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button></td>
-            </tr>
-          ))}
+          {data?.map((c) => {
+            const mensual = num(edit[c.id]?.cuota_mensual);
+            return (
+              <tr key={c.id}>
+                <td className="td w-32"><Input value={edit[c.id]?.nombre || ""} onChange={(e) => setEdit({ ...edit, [c.id]: { ...edit[c.id], nombre: e.target.value } })} /></td>
+                <td className="td w-40">
+                  <Input inputMode="decimal" value={edit[c.id]?.cuota_mensual || ""} onChange={(e) => setEdit({ ...edit, [c.id]: { ...edit[c.id], cuota_mensual: e.target.value } })} />
+                  {mensual === 0 && <span className="text-xs text-amber-700">Sin valor: no se generan cuotas</span>}
+                </td>
+                {pers.map((p) => (
+                  <td key={p.codigo} className="td text-right text-sm tabular-nums">
+                    {mensual ? pesos(Math.round(mensual * p.meses * (1 - num(desc[p.codigo]) / 100) * 100) / 100) : "—"}
+                  </td>
+                ))}
+                <td className="td text-right"><button onClick={() => borrar(c.id)} className="text-slate-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button></td>
+              </tr>
+            );
+          })}
           <tr>
             <td className="td"><Input placeholder="Nueva categoría" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} /></td>
             <td className="td"><Input placeholder="0" inputMode="decimal" value={nuevo.cuota_mensual} onChange={(e) => setNuevo({ ...nuevo, cuota_mensual: e.target.value })} /></td>
-            <td className="td text-right"><Button size="sm" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={agregar}>Agregar</Button></td>
+            <td className="td text-right" colSpan={pers.length + 1}><Button size="sm" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={agregar}>Agregar</Button></td>
           </tr>
         </tbody>
       </Table>
+      <p className="border-t border-slate-100 p-4 text-xs text-slate-500">
+        Cada socio paga según su <b>forma de pago</b> (mensual, bimestral, trimestral, semestral o anual): el importe es el valor mensual de su categoría
+        por la cantidad de meses, menos el descuento de esa forma de pago. Los bimestres, trimestres y semestres son del año calendario
+        (ej.: 5° bimestre = septiembre-octubre).
+      </p>
     </Card>
   );
 }

@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Users, Receipt, AlertCircle, Wallet, Megaphone, CalendarDays, Sparkles,
-  UserCheck, Settings, LogOut, Menu, X, LayoutTemplate, Send,
+  UserCheck, Settings, LogOut, Menu, X, LayoutTemplate, Send, Building2, FileText,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -26,13 +26,15 @@ import Accesos from "./pages/Accesos";
 import Configuracion from "./pages/Configuracion";
 import Contenido from "./pages/Contenido";
 import DifusionComercia from "./pages/DifusionComercia";
+import Alquileres from "./pages/Alquileres";
+import Facturacion from "./pages/Facturacion";
 
 interface NavItem {
   to: string;
   label: string;
   icon: typeof Users;
   roles?: Rol[]; // undefined = todo el personal
-  badge?: "accesos" | "comercia";
+  badge?: "accesos" | "comercia" | "facturas";
 }
 
 const NAV: NavItem[] = [
@@ -40,7 +42,9 @@ const NAV: NavItem[] = [
   { to: "/socios", label: "Socios", icon: Users },
   { to: "/cuotas", label: "Cuotas", icon: Receipt },
   { to: "/cobranzas", label: "Cobranzas y morosos", icon: AlertCircle },
-  { to: "/tesoreria", label: "Tesorería", icon: Wallet, roles: ["tesoreria"] },
+  { to: "/tesoreria", label: "Tesorería y banco", icon: Wallet, roles: ["tesoreria"] },
+  { to: "/facturacion", label: "Facturación", icon: FileText, roles: ["tesoreria"], badge: "facturas" },
+  { to: "/alquileres", label: "Alquileres", icon: Building2, roles: ["tesoreria"] },
   { to: "/comunicacion", label: "Comunicación", icon: Megaphone },
   { to: "/eventos", label: "Eventos y capacitaciones", icon: CalendarDays },
   { to: "/comercia", label: "ComercIA", icon: Sparkles, badge: "comercia" },
@@ -96,11 +100,12 @@ function Shell() {
   const { data: badges } = useQuery({
     queryKey: ["badges"],
     queryFn: async () => {
-      const [a, c] = await Promise.all([
+      const [a, c, f] = await Promise.all([
         supabase.from("socio_usuarios").select("user_id", { count: "exact", head: true }).eq("estado", "pendiente"),
         supabase.from("comercia_solicitudes").select("id", { count: "exact", head: true }).eq("estado", "nueva"),
+        supabase.from("facturas").select("id", { count: "exact", head: true }).eq("estado", "error"),
       ]);
-      return { accesos: a.count || 0, comercia: c.count || 0 };
+      return { accesos: a.count || 0, comercia: c.count || 0, facturas: f.count || 0 };
     },
     refetchInterval: 60_000,
   });
@@ -200,6 +205,8 @@ function Shell() {
               <Route path="/cuotas" element={<Cuotas />} />
               <Route path="/cobranzas" element={<Cobranzas />} />
               {can("tesoreria") && <Route path="/tesoreria" element={<Tesoreria />} />}
+              {can("tesoreria") && <Route path="/facturacion" element={<Facturacion />} />}
+              {can("tesoreria") && <Route path="/alquileres" element={<Alquileres />} />}
               <Route path="/comunicacion" element={<Comunicacion />} />
               <Route path="/eventos" element={<Eventos />} />
               <Route path="/comercia" element={<Comercia />} />

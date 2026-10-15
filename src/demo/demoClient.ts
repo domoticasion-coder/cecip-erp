@@ -26,6 +26,11 @@ export function lit(v: unknown): string {
   return `'${String(v).replace(/'/g, "''")}'`;
 }
 
+// Columnas jsonb que reciben listas (una lista vacía tiene que ir como [] y no como {} de text[])
+const JSONB_COLS = new Set(["preguntas", "items", "respuestas", "mensajes"]);
+const litCol = (col: string, v: unknown) =>
+  JSONB_COLS.has(col) && v !== null && v !== undefined ? `'${JSON.stringify(v).replace(/'/g, "''")}'` : lit(v);
+
 // ---------------------------------------------------------------------------
 // Sesión simulada
 // ---------------------------------------------------------------------------
@@ -118,6 +123,7 @@ class Query implements PromiseLike<Result> {
   private off = 0;
   private one: "single" | "maybe" | null = null;
   private payload: any;
+  private conflicto: { cols: string[]; ignorar: boolean } | null = null;
 
   constructor(private table: string) {
     ident(table);
@@ -132,6 +138,11 @@ class Query implements PromiseLike<Result> {
     return this;
   }
   insert(v: any) { this.op = "insert"; this.payload = Array.isArray(v) ? v : [v]; return this; }
+  upsert(v: any, o?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+    this.insert(v);
+    this.conflicto = { cols: (o?.onConflict || "id").split(",").map(ident), ignorar: !!o?.ignoreDuplicates };
+    return this;
+  }
   update(v: any) { this.op = "update"; this.payload = v; return this; }
   delete() { this.op = "delete"; return this; }
 
@@ -189,11 +200,17 @@ class Query implements PromiseLike<Result> {
       }
       case "insert": {
         const cols = [...new Set(this.payload.flatMap((r: object) => Object.keys(r)))] as string[];
-        const values = this.payload.map((r: any) => `(${cols.map((c) => (c in r ? lit(r[c]) : "default")).join(", ")})`).join(", ");
-        return `insert into ${t} (${cols.map(ident).join(", ")}) values ${values} returning ${this.returningList()}`;
+        const values = this.payload.map((r: any) => `(${cols.map((c) => (c in r ? litCol(c, r[c]) : "default")).join(", ")})`).join(", ");
+        let conflicto = "";
+        if (this.conflicto) {
+          const otras = cols.filter((c) => !this.conflicto!.cols.includes(c));
+          conflicto = ` on conflict (${this.conflicto.cols.join(", ")}) ` +
+            (this.conflicto.ignorar || !otras.length ? "do nothing" : `do update set ${otras.map((c) => `${ident(c)} = excluded.${ident(c)}`).join(", ")}`);
+        }
+        return `insert into ${t} (${cols.map(ident).join(", ")}) values ${values}${conflicto} returning ${this.returningList()}`;
       }
       case "update": {
-        const sets = Object.entries(this.payload).map(([k, v]) => `${ident(k)} = ${lit(v)}`).join(", ");
+        const sets = Object.entries(this.payload).map(([k, v]) => `${ident(k)} = ${litCol(k, v)}`).join(", ");
         return `update ${t} set ${sets}${this.where()} returning ${this.returningList()}`;
       }
       case "delete":
@@ -235,6 +252,15 @@ const RPC_TIPO: Record<string, "scalar" | "row" | "set"> = {
   destinatarios_comercia: "set",
   marcar_baja_whatsapp: "scalar",
   actualizar_ajustes_comercia: "scalar",
+  cuotas_a_generar: "set",
+  recalcular_cuotas_pendientes: "scalar",
+  generar_alquileres: "scalar",
+  registrar_pago_alquiler: "row",
+  anular_pago_alquiler: "row",
+  facturar: "scalar",
+  conciliar_banco: "row",
+  evento_publico: "scalar",
+  inscribir_publico: "scalar",
 };
 
 export async function rpc(name: string, params: Record<string, unknown> = {}, who?: Identidad): Promise<Result> {
@@ -257,10 +283,28 @@ export const usuarioActual = () => usuario;
 // Cliente
 // ---------------------------------------------------------------------------
 
+const imagenesDemo = new Map<string, string>();
+
 export function createDemoClient() {
   return {
     from: (table: string) => new Query(table),
     rpc: (name: string, params?: Record<string, unknown>) => rpc(name, params),
+    // Imágenes: en la demo se guardan como data URL dentro de la base local (no se suben a ningún servidor)
+    storage: {
+      from: (_bucket: string) => ({
+        async upload(path: string, file: Blob) {
+          const url = await new Promise<string>((ok, ko) => {
+            const r = new FileReader();
+            r.onload = () => ok(String(r.result));
+            r.onerror = () => ko(r.error);
+            r.readAsDataURL(file);
+          });
+          imagenesDemo.set(path, url);
+          return { data: { path }, error: null };
+        },
+        getPublicUrl: (path: string) => ({ data: { publicUrl: imagenesDemo.get(path) || "" } }),
+      }),
+    },
     auth: {
       getSession: async () => ({ data: { session: sesion() }, error: null }),
       onAuthStateChange(cb: (event: string, session: any) => void) {
