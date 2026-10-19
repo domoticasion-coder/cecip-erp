@@ -1,0 +1,175 @@
+{
+  "name": "CeCIP · Alertas de errores",
+  "nodes": [
+    {
+      "id": "c1f04362-3e06-4b63-9a6d-6f456830f202",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Alertas de errores\nWorkflow de errores de todos los flujos CeCIP: avisa por email (email_alertas de CeCIP · Config) el flujo, nodo y mensaje de cualquier falla no manejada.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "da207817-3946-4f84-b38e-a1e8fe560e1a",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ea3389b4-a461-4486-acbc-f2e9be218240",
+      "name": "Config",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MsW2RwiVb6lk8ph0",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Config"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "5de5ccc3-1e32-485c-aacf-a131239b9422",
+      "name": "¿Hay email de alertas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "443de501-ccf5-4245-8b2c-3f4dff0eb471",
+              "leftValue": "={{ !!$json.email_alertas }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f5030ccb-5d0f-430f-ade7-beb0e92e4963",
+      "name": "Enviar alerta por email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        780,
+        246
+      ],
+      "parameters": {
+        "fromEmail": "={{ $('Config').first().json.email_remitente }}",
+        "toEmail": "={{ $('Config').first().json.email_alertas }}",
+        "subject": "={{ '⚠️ Falló el flujo de n8n: ' + $('Error Trigger').first().json.workflow.name }}",
+        "emailFormat": "text",
+        "text": "={{ 'Flujo: ' + $('Error Trigger').first().json.workflow.name + '\\nNodo: ' + ($('Error Trigger').first().json.execution?.lastNodeExecuted || '—') + '\\nError: ' + ($('Error Trigger').first().json.execution?.error?.message || 'sin detalle') + '\\nEjecución: ' + ($('Error Trigger').first().json.execution?.url || '—') }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "notes": "Credencial a crear: SMTP (por ejemplo Resend: smtp.resend.com, puerto 465, usuario 'resend', contraseña = API key de Resend)."
+    },
+    {
+      "id": "95f7397d-955c-4f60-96d8-1de4645fa2f4",
+      "name": "Sin email configurado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        780,
+        426
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "¿Hay email de alertas?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay email de alertas?": {
+      "main": [
+        [
+          {
+            "node": "Enviar alerta por email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin email configurado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

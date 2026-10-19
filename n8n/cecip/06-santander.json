@@ -1,0 +1,297 @@
+{
+  "name": "CeCIP · Santander: Obtener movimientos",
+  "nodes": [
+    {
+      "id": "480c6514-6b8a-405e-a1cb-1c5f20cf76dc",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Santander: Obtener movimientos\nSub-workflow. Entradas: desde, hasta (YYYY-MM-DD). En modo simulación devuelve una lista vacía; en producción consulta la API de Santander (credencial OAuth2) y normaliza al formato del ERP. Devuelve { ok, movimientos:[{ id, fecha, descripcion, monto, saldo, referencia, contraparte_nombre, contraparte_cuit }] }.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "9019fd25-65be-4f5c-b24e-59428e9db6b3",
+      "name": "Al ejecutarse desde otro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "desde",
+              "type": "string"
+            },
+            {
+              "name": "hasta",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a8742b6c-c8db-4d01-ab98-1b419b207526",
+      "name": "Config",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MsW2RwiVb6lk8ph0",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Config"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "89f9f1e8-2d74-4c66-843b-fe14c7f26e92",
+      "name": "¿Modo producción?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5436cc35-19cf-41af-9c24-b8ea9b10abab",
+              "leftValue": "={{ $json.modo_banco === 'produccion' && !!$json.santander_api_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "708705ab-7007-42e2-a6ac-71b67894fb75",
+      "name": "Return (simulación)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        780,
+        444
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ac6a1541-4cca-4906-a0a1-77ff854aee05",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ true }}"
+            },
+            {
+              "id": "1ea76648-c307-4127-b8ff-e72b6f913f35",
+              "name": "simulado",
+              "type": "boolean",
+              "value": "={{ true }}"
+            },
+            {
+              "id": "b884c37a-7d1b-4ad1-a211-fcc56017f43e",
+              "name": "movimientos",
+              "type": "array",
+              "value": "={{ [] }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "56d943fb-a121-47b9-ab34-bf8cad1d8220",
+      "name": "Santander: movimientos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        228
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.santander_api_url.replace(/\\/$/, '') }}/accounts/{{ $json.santander_cuenta }}/transactions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "dateFrom",
+              "value": "={{ $('Al ejecutarse desde otro workflow').first().json.desde }}"
+            },
+            {
+              "name": "dateTo",
+              "value": "={{ $('Al ejecutarse desde otro workflow').first().json.hasta }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput",
+      "notes": "Completar según el contrato de API con Santander: credencial OAuth2 (client credentials) y, si cambian, la ruta y los nombres de los parámetros de fecha."
+    },
+    {
+      "id": "fabefe01-a107-4e3a-80af-c9540e2b9560",
+      "name": "Normalizar movimientos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        228
+      ],
+      "parameters": {
+        "jsCode": "// Convierte la respuesta del banco al formato del ERP: { id, fecha, descripcion, monto (+ crédito / - débito), saldo, referencia, contraparte_nombre, contraparte_cuit }\nconst d = $input.first().json;\nconst crudos = d.transactions?.booked || d.transactions || d.movimientos || d.data || d.items || (Array.isArray(d) ? d : []);\nconst num = (v) => typeof v === 'number' ? v : Number(String(v ?? '').replace(/\\./g, '').replace(',', '.'));\nconst movimientos = (Array.isArray(crudos) ? crudos : []).map((m) => {\n  let monto = num(m.amount?.amount ?? m.transactionAmount?.amount ?? m.amount ?? m.importe ?? m.monto);\n  const tipo = String(m.creditDebitIndicator || m.type || m.tipo || '').toUpperCase();\n  if (/DBIT|DEBIT|DEB/.test(tipo) && monto > 0) monto = -monto;\n  return {\n    id: String(m.transactionId || m.id || m.reference || m.referencia || ''),\n    fecha: String(m.bookingDate || m.valueDate || m.date || m.fecha || '').slice(0, 10),\n    descripcion: String(m.remittanceInformationUnstructured || m.description || m.descripcion || m.concepto || 'Movimiento').slice(0, 300),\n    monto,\n    saldo: m.balanceAfterTransaction?.balanceAmount?.amount ?? m.balance ?? m.saldo ?? null,\n    referencia: m.endToEndId || m.reference || m.referencia || null,\n    contraparte_nombre: m.creditorName || m.debtorName || m.counterpartName || null,\n    contraparte_cuit: m.creditorId || m.debtorId || m.cuit || null,\n  };\n}).filter((m) => m.fecha && Number.isFinite(m.monto) && m.monto !== 0);\nreturn [{ json: { ok: true, movimientos } }];"
+      }
+    },
+    {
+      "id": "939ec5d9-c19e-4b77-b863-c3c4b2fa7b68",
+      "name": "Return error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        408
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "edecaf5d-6e08-4822-aefe-e5c7a2999b62",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ false }}"
+            },
+            {
+              "id": "90cacfef-50b7-4e62-a739-2dc7d2fa731d",
+              "name": "movimientos",
+              "type": "array",
+              "value": "={{ [] }}"
+            },
+            {
+              "id": "3a826475-d372-41b1-ae16-2f1086602361",
+              "name": "error",
+              "type": "string",
+              "value": "={{ 'Santander: ' + String($json.error?.message || 'error de conexión').slice(0, 300) }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Al ejecutarse desde otro workflow": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "¿Modo producción?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Modo producción?": {
+      "main": [
+        [
+          {
+            "node": "Santander: movimientos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return (simulación)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Santander: movimientos": {
+      "main": [
+        [
+          {
+            "node": "Normalizar movimientos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

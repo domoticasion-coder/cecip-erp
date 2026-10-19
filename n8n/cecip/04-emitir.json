@@ -1,0 +1,592 @@
+{
+  "name": "CeCIP · ARCA: Emitir comprobante",
+  "nodes": [
+    {
+      "id": "f5ece0f9-2831-4270-9ef1-27247c499fd2",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · ARCA: Emitir comprobante\nSub-workflow. Entradas: factura (object), receptor (object), emisor (object), ambiente (simulacion|homologacion|produccion), dir (string). En simulación devuelve un CAE de prueba. Si no, pide el último número (FECompUltimoAutorizado) y el CAE (FECAESolicitar) a ARCA. Devuelve { ok, factura_id, cae, cae_vencimiento, numero } o { ok:false, factura_id, error }.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "3cb78e9c-bfa6-452a-b638-d8c03ed19b96",
+      "name": "Al ejecutarse desde otro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "factura",
+              "type": "object"
+            },
+            {
+              "name": "receptor",
+              "type": "object"
+            },
+            {
+              "name": "emisor",
+              "type": "object"
+            },
+            {
+              "name": "ambiente",
+              "type": "string"
+            },
+            {
+              "name": "dir",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d92afa3b-bf07-4da8-b458-730eb4b35e56",
+      "name": "¿Simulación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0da7d90c-ac78-41d7-9d27-f87ca1f072b0",
+              "leftValue": "={{ $('Al ejecutarse desde otro workflow').first().json.ambiente === 'simulacion' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "44bb5e7b-915f-43cd-ac67-3f070d97829e",
+      "name": "Return CAE simulado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        520,
+        174
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "194042aa-07db-4d92-8f73-7fd0644c5d8e",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ true }}"
+            },
+            {
+              "id": "ae6c54a4-6465-46b0-8fa4-a801d7334e6a",
+              "name": "simulado",
+              "type": "boolean",
+              "value": "={{ true }}"
+            },
+            {
+              "id": "be3d2591-d960-4c3e-bf62-ae4de1d19759",
+              "name": "factura_id",
+              "type": "string",
+              "value": "={{ $('Al ejecutarse desde otro workflow').first().json.factura.id }}"
+            },
+            {
+              "id": "dd4a5cc9-3a64-4220-8373-db30c0e1c801",
+              "name": "cae",
+              "type": "string",
+              "value": "={{ '7' + String(Date.now()).slice(-13).padStart(13, '0') }}"
+            },
+            {
+              "id": "c1dcddaf-1c71-4a1d-9663-c1a23b8eab7c",
+              "name": "cae_vencimiento",
+              "type": "string",
+              "value": "={{ $now.plus({ days: 10 }).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "id": "afb6133d-ece5-4b7b-82d5-13cc0b9d1034",
+              "name": "numero",
+              "type": "number",
+              "value": "={{ Math.floor(Date.now() / 1000) % 100000000 }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "a96b178d-ccd2-4bde-aa25-1ab491481317",
+      "name": "Obtener token WSAA",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        408
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "zSAMTq5DSOT93WmB",
+          "mode": "list",
+          "cachedResultName": "CeCIP · ARCA: Obtener token WSAA"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ambiente": "={{ $('Al ejecutarse desde otro workflow').first().json.ambiente }}",
+            "dir": "={{ $('Al ejecutarse desde otro workflow').first().json.dir }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ambiente",
+              "displayName": "ambiente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "dir",
+              "displayName": "dir",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "c4a5c861-86c2-4cb2-a3f8-058b9ee6d7c0",
+      "name": "¿Token OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        408
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "06049fcb-ec36-484d-8ca4-22c3949d1c76",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0a1297ba-4d0d-44ee-b88b-3a405c355b87",
+      "name": "Armar consulta del último número",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        354
+      ],
+      "parameters": {
+        "jsCode": "const e = $('Al ejecutarse desde otro workflow').first().json;\nconst tk = $input.first().json;\nconst pv = Number(e.factura.punto_venta || e.emisor.punto_venta);\nif (!pv) throw new Error('Falta el punto de venta de ARCA (cargalo en ERP > Facturación > Conexión)');\nconst cuit = String(e.emisor.cuit || '').replace(/\\D/g, '');\nif (cuit.length !== 11) throw new Error('Falta el CUIT del CeCIP (ERP > Configuración > Institución)');\nconst auth = '<ar:Auth><ar:Token>' + tk.token + '</ar:Token><ar:Sign>' + tk.sign + '</ar:Sign><ar:Cuit>' + cuit + '</ar:Cuit></ar:Auth>';\nconst xml = '<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\"><soap:Body>'\n  + '<ar:FECompUltimoAutorizado>' + auth + '<ar:PtoVta>' + pv + '</ar:PtoVta><ar:CbteTipo>' + e.factura.cbte_tipo + '</ar:CbteTipo></ar:FECompUltimoAutorizado>'\n  + '</soap:Body></soap:Envelope>';\nconst url = e.ambiente === 'produccion' ? 'https://servicios1.afip.gov.ar/wsfev1/service.asmx' : 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx';\nreturn [{ json: { xml, url, auth, pv, cuit, accion: 'http://ar.gov.afip.dif.FEV1/FECompUltimoAutorizado' } }];"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "a2f6f62a-8068-4e8c-ac58-9a8e49ceb1f6",
+      "name": "ARCA: último comprobante",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        354
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "SOAPAction",
+              "value": "={{ $json.accion }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/xml; charset=utf-8",
+        "body": "={{ $json.xml }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "8bb310bd-cabe-4bc0-9174-c2dece06a590",
+      "name": "Armar solicitud de CAE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        354
+      ],
+      "parameters": {
+        "jsCode": "const e = $('Al ejecutarse desde otro workflow').first().json;\nconst p = $('Armar consulta del último número').first().json;\nconst txt = String($input.first().json.data || '');\nconst err = (txt.match(/<Err>[\\s\\S]*?<Msg>([\\s\\S]*?)<\\/Msg>/) || [])[1];\nif (err) throw new Error('ARCA (último número): ' + err);\nconst ultimo = Number((txt.match(/<CbteNro>(\\d+)<\\/CbteNro>/) || [])[1]);\nif (!Number.isFinite(ultimo)) throw new Error('ARCA no devolvió el último número de comprobante');\nconst f = e.factura, r = e.receptor;\nconst n = ultimo + 1;\nconst fch = (d) => String(d || '').slice(0, 10).replace(/-/g, '');\nconst m = (v) => Number(v || 0).toFixed(2);\nconst esC = Number(f.cbte_tipo) === 11;\nconst idAlic = { 0: 3, 10.5: 4, 21: 5, 27: 6, 5: 8, 2.5: 9 }[Number(f.iva_alicuota)] || 5;\nconst iva = esC || !Number(f.iva) ? '' : '<ar:Iva><ar:AlicIva><ar:Id>' + idAlic + '</ar:Id><ar:BaseImp>' + m(f.neto) + '</ar:BaseImp><ar:Importe>' + m(f.iva) + '</ar:Importe></ar:AlicIva></ar:Iva>';\nconst det = '<ar:FECAEDetRequest>'\n  + '<ar:Concepto>' + (f.concepto_arca || 2) + '</ar:Concepto>'\n  + '<ar:DocTipo>' + (r.doc_tipo || 99) + '</ar:DocTipo><ar:DocNro>' + (r.doc_nro || 0) + '</ar:DocNro>'\n  + '<ar:CbteDesde>' + n + '</ar:CbteDesde><ar:CbteHasta>' + n + '</ar:CbteHasta>'\n  + '<ar:CbteFch>' + fch(f.fecha) + '</ar:CbteFch>'\n  + '<ar:ImpTotal>' + m(f.total) + '</ar:ImpTotal><ar:ImpTotConc>0.00</ar:ImpTotConc>'\n  + '<ar:ImpNeto>' + m(esC ? f.total : f.neto) + '</ar:ImpNeto><ar:ImpOpEx>0.00</ar:ImpOpEx><ar:ImpTrib>0.00</ar:ImpTrib>'\n  + '<ar:ImpIVA>' + m(esC ? 0 : f.iva) + '</ar:ImpIVA>'\n  + '<ar:FchServDesde>' + fch(f.servicio_desde || f.fecha) + '</ar:FchServDesde><ar:FchServHasta>' + fch(f.servicio_hasta || f.fecha) + '</ar:FchServHasta>'\n  + '<ar:FchVtoPago>' + fch(f.vencimiento_pago || f.fecha) + '</ar:FchVtoPago>'\n  + '<ar:MonId>PES</ar:MonId><ar:MonCotiz>1</ar:MonCotiz>'\n  + '<ar:CondicionIVAReceptorId>' + (r.condicion_iva_id || 5) + '</ar:CondicionIVAReceptorId>'\n  + iva + '</ar:FECAEDetRequest>';\nconst xml = '<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\"><soap:Body>'\n  + '<ar:FECAESolicitar>' + p.auth + '<ar:FeCAEReq><ar:FeCabReq><ar:CantReg>1</ar:CantReg><ar:PtoVta>' + p.pv + '</ar:PtoVta><ar:CbteTipo>' + f.cbte_tipo + '</ar:CbteTipo></ar:FeCabReq>'\n  + '<ar:FeDetReq>' + det + '</ar:FeDetReq></ar:FeCAEReq></ar:FECAESolicitar></soap:Body></soap:Envelope>';\nreturn [{ json: { xml, url: p.url, accion: 'http://ar.gov.afip.dif.FEV1/FECAESolicitar', numero: n } }];"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "0061ec13-8d5f-4ae4-8516-a6c7363b6ec7",
+      "name": "ARCA: solicitar CAE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        354
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "SOAPAction",
+              "value": "={{ $json.accion }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/xml; charset=utf-8",
+        "body": "={{ $json.xml }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "4975ca60-6275-411d-8e5e-280a6e5650e5",
+      "name": "Leer respuesta de ARCA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        354
+      ],
+      "parameters": {
+        "jsCode": "const e = $('Al ejecutarse desde otro workflow').first().json;\nconst numero = $('Armar solicitud de CAE').first().json.numero;\nconst txt = String($input.first().json.data || '');\nconst todos = (tag) => [...txt.matchAll(new RegExp('<' + tag + '>[\\\\s\\\\S]*?<Code>(\\\\d+)</Code>[\\\\s\\\\S]*?<Msg>([\\\\s\\\\S]*?)</Msg>', 'g'))].map((x) => x[1] + ': ' + x[2]);\nconst resultado = (txt.match(/<Resultado>(\\w)<\\/Resultado>/) || [])[1];\nconst caeNro = (txt.match(/<CAE>(\\d+)<\\/CAE>/) || [])[1];\nconst vto = (txt.match(/<CAEFchVto>(\\d{8})<\\/CAEFchVto>/) || [])[1];\nif (resultado === 'A' && caeNro) {\n  return [{ json: { ok: true, factura_id: e.factura.id, cae: caeNro, cae_vencimiento: vto.slice(0, 4) + '-' + vto.slice(4, 6) + '-' + vto.slice(6), numero, observaciones: todos('Obs').join(' | ') || null } }];\n}\nconst motivo = [...todos('Err'), ...todos('Obs')].join(' | ') || 'ARCA rechazó el comprobante';\nreturn [{ json: { ok: false, factura_id: e.factura.id, error: motivo.slice(0, 480) } }];"
+      }
+    },
+    {
+      "id": "7d697a5c-819d-4f12-9844-7aa0cccdf9cf",
+      "name": "Return resultado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2340,
+        354
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e9d8b44c-58da-4f2d-8560-bc6f63d7c1aa",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ $json.ok }}"
+            },
+            {
+              "id": "177e8714-5092-4bdb-9905-b3fb8ceafbb6",
+              "name": "factura_id",
+              "type": "string",
+              "value": "={{ $json.factura_id }}"
+            },
+            {
+              "id": "294cab37-bdaf-45af-91e7-8f8c897a85fa",
+              "name": "cae",
+              "type": "string",
+              "value": "={{ $json.cae || null }}"
+            },
+            {
+              "id": "5196b310-ef70-43d9-8bcd-4ddcbce5d750",
+              "name": "cae_vencimiento",
+              "type": "string",
+              "value": "={{ $json.cae_vencimiento || null }}"
+            },
+            {
+              "id": "232d5fb0-edee-4774-96dc-0137ec0a447f",
+              "name": "numero",
+              "type": "number",
+              "value": "={{ $json.numero || null }}"
+            },
+            {
+              "id": "3b8a5e6a-305a-4e9b-88ef-59ccb8cebedc",
+              "name": "error",
+              "type": "string",
+              "value": "={{ $json.error || null }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "77ebee48-31cd-47bf-8f25-36d0c6e4e2ea",
+      "name": "Return error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1820,
+        570
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e8f554aa-122e-477a-ba91-40e6770c2e9b",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ false }}"
+            },
+            {
+              "id": "d2075b31-b14d-4228-8d5b-680105ab16b7",
+              "name": "factura_id",
+              "type": "string",
+              "value": "={{ $('Al ejecutarse desde otro workflow').first().json.factura.id }}"
+            },
+            {
+              "id": "922112f0-bb50-4b7e-89ff-0eaa9491999a",
+              "name": "error",
+              "type": "string",
+              "value": "={{ String($json.error?.message || $json.error || 'Error al emitir en ARCA').slice(0, 480) }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Al ejecutarse desde otro workflow": {
+      "main": [
+        [
+          {
+            "node": "¿Simulación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Simulación?": {
+      "main": [
+        [
+          {
+            "node": "Return CAE simulado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Obtener token WSAA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener token WSAA": {
+      "main": [
+        [
+          {
+            "node": "¿Token OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Token OK?": {
+      "main": [
+        [
+          {
+            "node": "Armar consulta del último número",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar consulta del último número": {
+      "main": [
+        [
+          {
+            "node": "ARCA: último comprobante",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARCA: último comprobante": {
+      "main": [
+        [
+          {
+            "node": "Armar solicitud de CAE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar solicitud de CAE": {
+      "main": [
+        [
+          {
+            "node": "ARCA: solicitar CAE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARCA: solicitar CAE": {
+      "main": [
+        [
+          {
+            "node": "Leer respuesta de ARCA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer respuesta de ARCA": {
+      "main": [
+        [
+          {
+            "node": "Return resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

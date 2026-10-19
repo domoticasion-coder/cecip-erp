@@ -1,0 +1,213 @@
+{
+  "name": "Prueba · Webhook de contacto (validación + respuesta)",
+  "nodes": [
+    {
+      "id": "fea53c1a-f14c-4fc4-985e-043ebdf82515",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "7a96477f-e759-4767-8d5c-520271ec431e",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "prueba-contacto",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "2c45a587-b16f-4c9a-89fa-cc5827c8bd5c",
+      "name": "Validar datos",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bc07ec13-2d27-44d0-bc2d-181a9ee3539d",
+              "name": "result",
+              "type": "object",
+              "value": "={{ (() => {\n  const body = $json.body || {};\n  const errores = [];\n  const ESQUEMA = {\n    type: 'object',\n    required: ['nombre', 'telefono', 'mensaje'],\n    properties: {\n      nombre: { type: 'string', minLength: 2, maxLength: 100, description: 'Nombre de quien escribe' },\n      telefono: { type: 'string', pattern: '8 a 15 dígitos (se aceptan espacios, guiones, paréntesis y +)', description: 'Teléfono o WhatsApp' },\n      mensaje: { type: 'string', minLength: 1, maxLength: 1000, description: 'Consulta o mensaje' }\n    }\n  };\n  let nombre = null, telefono = null, mensaje = null;\n  if (!('nombre' in body) || body.nombre === null || body.nombre === '') errores.push({ p: 'nombre', m: 'Falta el campo obligatorio \"nombre\"' });\n  else if (typeof body.nombre !== 'string') errores.push({ p: 'nombre', m: 'Tiene que ser texto' });\n  else { nombre = body.nombre.trim().replace(/\\s+/g, ' '); if (nombre.length < 2 || nombre.length > 100) errores.push({ p: 'nombre', m: 'Tiene que tener entre 2 y 100 caracteres' }); }\n  if (!('telefono' in body) || body.telefono === null || body.telefono === '') errores.push({ p: 'telefono', m: 'Falta el campo obligatorio \"telefono\"' });\n  else if (typeof body.telefono !== 'string' && typeof body.telefono !== 'number') errores.push({ p: 'telefono', m: 'Tiene que ser texto o número' });\n  else {\n    const crudo = String(body.telefono).trim();\n    telefono = crudo.replace(/\\D/g, '');\n    if (!/^[+\\d\\s().-]+$/.test(crudo)) errores.push({ p: 'telefono', m: 'Solo puede tener números, espacios, guiones, paréntesis y +' });\n    else if (telefono.length < 8 || telefono.length > 15) errores.push({ p: 'telefono', m: 'Tiene que tener entre 8 y 15 dígitos' });\n  }\n  if (!('mensaje' in body) || body.mensaje === null) errores.push({ p: 'mensaje', m: 'Falta el campo obligatorio \"mensaje\"' });\n  else if (typeof body.mensaje !== 'string') errores.push({ p: 'mensaje', m: 'Tiene que ser texto' });\n  else { mensaje = body.mensaje.trim(); if (mensaje.length < 1 || mensaje.length > 1000) errores.push({ p: 'mensaje', m: 'Tiene que tener entre 1 y 1000 caracteres' }); }\n  if (errores.length === 0) return { valid: true, validationError: null, datos: { nombre, telefono, mensaje } };\n  const detalles = {};\n  errores.forEach(e => { if (!(e.p in detalles)) detalles[e.p] = e.m; });\n  return {\n    valid: false,\n    validationError: 'Datos inválidos (' + errores.length + ' problema' + (errores.length > 1 ? 's' : '') + '): ' + errores.map(e => e.p + ': ' + e.m).join('; '),\n    details: detalles,\n    requiredSchema: ESQUEMA\n  };\n})() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Valida nombre, teléfono y mensaje en un solo nodo. Devuelve { valid, validationError, details, requiredSchema } y, si es válido, los datos limpios en result.datos."
+    },
+    {
+      "id": "1dd3273b-d15a-4141-8245-9faa534f58b9",
+      "name": "¿Datos válidos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "89d8bb88-074c-46ff-a770-147103f4f2c2",
+              "leftValue": "={{ $json.result.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4ed41a1c-82c3-457c-b5e9-be747290b6c5",
+      "name": "Preparar respuesta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dfd2a76e-0559-438d-8b65-7763e0258e6b",
+              "name": "respuesta",
+              "type": "object",
+              "value": "={{ (() => {\n  const d = $('Validar datos').item.json.result.datos;\n  const ahora = $now.setZone('America/Argentina/Buenos_Aires');\n  const saludo = ahora.hour < 12 ? 'Buen día' : (ahora.hour < 20 ? 'Buenas tardes' : 'Buenas noches');\n  const primerNombre = d.nombre.split(' ')[0];\n  const telefonoVisible = d.telefono.length > 4 ? '•••• ' + d.telefono.slice(-4) : d.telefono;\n  return {\n    mensaje: saludo + ', ' + primerNombre + '! Recibimos tu mensaje y te vamos a responder al ' + telefonoVisible + ' a la brevedad.',\n    datos: { nombre: d.nombre, telefono: d.telefono, mensaje: d.mensaje, largo_mensaje: d.mensaje.length },\n    recibido_en: ahora.toISO(),\n    id_solicitud: $execution.id\n  };\n})() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Arma el contrato de salida (solo este campo sale al Respond: Include Other Fields desactivado)."
+    },
+    {
+      "id": "a1269f3b-07b2-427d-9b55-5ce691851d8c",
+      "name": "Responder 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.respuesta) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "8a711162-b732-4386-9357-a6e1ef212333",
+      "name": "Responder 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        420
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'validation_error', message: $json.result.validationError, details: $json.result.details, request_schema: $json.result.requiredSchema }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar datos": {
+      "main": [
+        [
+          {
+            "node": "¿Datos válidos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Datos válidos?": {
+      "main": [
+        [
+          {
+            "node": "Preparar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Responder 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

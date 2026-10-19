@@ -1,0 +1,261 @@
+{
+  "name": "CeCIP · Email: Enviar lote por Resend",
+  "nodes": [
+    {
+      "id": "a41c7668-c070-464b-95f5-992e0fb32870",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Email: Enviar lote por Resend\nSub-workflow. Entradas: mensajes (array de { to, cc?, subject, html, text?, meta }), from, reply_to (string), pausa_seg (number). Envía hasta 100 emails en una llamada a Resend (credencial 'Resend API') y devuelve { resultados:[{ to, subject, ok, error?, meta }] }.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "62e8810c-e57f-4c87-9fe6-d9e90fa1091c",
+      "name": "Al ejecutarse desde otro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "mensajes",
+              "type": "array"
+            },
+            {
+              "name": "from",
+              "type": "string"
+            },
+            {
+              "name": "reply_to",
+              "type": "string"
+            },
+            {
+              "name": "pausa_seg",
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6132870f-62aa-46e0-bf74-a5c471dabdc2",
+      "name": "Armar lote para Resend",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\nconst lote = (e.mensajes || []).map((m) => ({\n  from: e.from,\n  to: [m.to],\n  ...(m.cc && m.cc.length ? { cc: m.cc } : {}),\n  subject: m.subject,\n  html: m.html,\n  ...(m.text ? { text: m.text } : {}),\n  ...(e.reply_to ? { reply_to: e.reply_to } : {}),\n}));\nreturn [{ json: { lote } }];"
+      }
+    },
+    {
+      "id": "caceb56b-6844-4a58-b59d-572e1cb83af1",
+      "name": "Resend: enviar lote",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails/batch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.lote) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput",
+      "notes": "Credencial a crear: 'Resend API' (Header Auth) → Name: Authorization · Value: Bearer re_xxx"
+    },
+    {
+      "id": "68e66a52-afb4-431f-a77f-82f56fc7b700",
+      "name": "Resultados OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        780,
+        228
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "52c15aa8-a386-40d1-8120-8cdcfcfbad2d",
+              "name": "resultados",
+              "type": "array",
+              "value": "={{ $('Al ejecutarse desde otro workflow').first().json.mensajes.map((m) => ({ to: m.to, subject: m.subject, ok: true, meta: m.meta })) }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "e0954302-e4f7-4de3-b31b-2ec8582e305b",
+      "name": "Resultados con error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        780,
+        426
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "01d77983-dee0-4060-8cae-8ff5abaf25a4",
+              "name": "resultados",
+              "type": "array",
+              "value": "={{ $('Al ejecutarse desde otro workflow').first().json.mensajes.map((m) => ({ to: m.to, subject: m.subject, ok: false, error: 'Resend: ' + String($json.error?.message || 'error de envío').slice(0, 200), meta: m.meta })) }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "2fec987a-915f-41a5-8402-2dbf7e94ab8c",
+      "name": "Pausa entre lotes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        300
+      ],
+      "parameters": {
+        "amount": "={{ $('Al ejecutarse desde otro workflow').first().json.pausa_seg || 2 }}",
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "1a1bef43-7ef2-4045-824d-ef7755e9225c",
+      "name": "Return resultados",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c42e3982-1d11-406f-b880-ffa80121b80a",
+              "name": "resultados",
+              "type": "array",
+              "value": "={{ $('Resultados OK').isExecuted ? $('Resultados OK').first().json.resultados : $('Resultados con error').first().json.resultados }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Al ejecutarse desde otro workflow": {
+      "main": [
+        [
+          {
+            "node": "Armar lote para Resend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar lote para Resend": {
+      "main": [
+        [
+          {
+            "node": "Resend: enviar lote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resend: enviar lote": {
+      "main": [
+        [
+          {
+            "node": "Resultados OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resultados con error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resultados OK": {
+      "main": [
+        [
+          {
+            "node": "Pausa entre lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resultados con error": {
+      "main": [
+        [
+          {
+            "node": "Pausa entre lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa entre lotes": {
+      "main": [
+        [
+          {
+            "node": "Return resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

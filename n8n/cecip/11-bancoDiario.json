@@ -1,0 +1,346 @@
+{
+  "name": "CeCIP · Banco: Sincronización diaria",
+  "nodes": [
+    {
+      "id": "48710e1b-71b1-4484-a44e-4d3066bd6d25",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Banco: Sincronización diaria\nProgramado (lunes a viernes 7:30, hora del servidor). Si modo_banco = produccion, trae los movimientos de Santander de los últimos 3 días y los envía al ERP (los repetidos no se duplican).",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "7402d28d-b33a-4657-a679-7d84c442a43e",
+      "name": "Todos los días hábiles 7:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6a7b4602-c705-455f-8354-8d44b78c331a",
+      "name": "Config",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MsW2RwiVb6lk8ph0",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Config"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "0263e4dc-371d-499f-a709-df60cf2a05cb",
+      "name": "¿Banco en producción?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ac0854e9-359d-4476-b6fb-74855d5e6a80",
+              "leftValue": "={{ $json.modo_banco === 'produccion' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6cea781a-9348-4d1f-989f-6334d4092416",
+      "name": "Simulación: no consulta",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        780,
+        426
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bd1136fe-8d59-4f89-a17b-79480b7996d9",
+      "name": "Obtener últimos 3 días",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        780,
+        246
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "lryvdoVDOtpkUPuQ",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Santander: Obtener movimientos"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "desde": "={{ $now.setZone('America/Argentina/Buenos_Aires').minus({ days: 3 }).toFormat('yyyy-MM-dd') }}",
+            "hasta": "={{ $now.setZone('America/Argentina/Buenos_Aires').toFormat('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "desde",
+              "displayName": "desde",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "hasta",
+              "displayName": "hasta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "9dab2129-c78b-4f23-95e3-27c21ab3649a",
+      "name": "¿Hay movimientos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        246
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9baab2ee-d0d0-4ab8-ae57-61c92486a08f",
+              "leftValue": "={{ ($json.movimientos || []).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f8f62dd7-7ed3-467e-9fa3-5ce180227505",
+      "name": "Enviar al ERP",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1300,
+        210
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "zODrtOAVa1FCYVU5",
+          "mode": "list",
+          "cachedResultName": "CeCIP · ERP: Enviar resultado"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $('Config').first().json.erp_url }}/api/integraciones/banco-movimientos",
+            "cuerpo": "={{ { banco: 'Santander', movimientos: $json.movimientos } }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "cuerpo",
+              "displayName": "cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "10d6a427-7db0-480f-b7d8-5235440df197",
+      "name": "Nada para enviar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        372
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Todos los días hábiles 7:30": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "¿Banco en producción?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Banco en producción?": {
+      "main": [
+        [
+          {
+            "node": "Obtener últimos 3 días",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Simulación: no consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener últimos 3 días": {
+      "main": [
+        [
+          {
+            "node": "¿Hay movimientos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay movimientos?": {
+      "main": [
+        [
+          {
+            "node": "Enviar al ERP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nada para enviar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "saveManualExecutions": true,
+    "errorWorkflow": "f92XGaS4QQDmCTs5"
+  }
+}

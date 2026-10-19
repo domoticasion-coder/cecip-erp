@@ -1,5 +1,6 @@
 import { HttpError, env, getCaller, handle, json, pesos, readJson, requireStaff, supabaseAdmin } from "../_lib/core.js";
 import { emailLayout, emailValido, sendEmails, textToHtml } from "../_lib/email.js";
+import { encolarEmails } from "../_lib/integraciones.js";
 
 /**
  * POST /api/comunicaciones/enviar { socio_ids, asunto, cuerpo, comunicado_id?, imagen_url? }
@@ -43,6 +44,22 @@ export const POST = handle(async (req) => {
       boton: { texto: "Ingresar al portal de socios", url: env.portalUrl() + (body.comunicado_id ? "/comunicados" : "") },
     }),
   }));
+
+  const tipo = body.comunicado_id ? "comunicado" : "manual";
+  const sinEmailLogs = sinEmail.map((s) => ({
+    socio_id: s.id, comunicado_id: body.comunicado_id || null, canal: "email", tipo, asunto, destinatario: null,
+    estado: "error", error: "Socio sin email válido", created_by: caller.userId,
+  }));
+  const erroresSinEmail = sinEmail.map((s) => ({ socio: s.nombre_comercial || s.razon_social, error: "Sin email válido" }));
+
+  // Envío masivo por n8n (si está configurado): se encola la lista y los resultados llegan después
+  const encolado = await encolarEmails(new URL(req.url).origin, mensajes.map((m, i) => ({
+    ...m, meta: { socio_id: conEmail[i].id, comunicado_id: body.comunicado_id || null, tipo, created_by: caller.userId },
+  })));
+  if (encolado) {
+    if (sinEmailLogs.length) await sb.from("envios").insert(sinEmailLogs);
+    return json({ enviados: encolado.encolados, encolados: true, errores: erroresSinEmail });
+  }
 
   const resultados = mensajes.length ? await sendEmails(mensajes) : [];
 

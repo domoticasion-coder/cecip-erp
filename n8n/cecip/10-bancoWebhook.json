@@ -1,0 +1,394 @@
+{
+  "name": "CeCIP · Banco: Sincronizar (webhook)",
+  "nodes": [
+    {
+      "id": "bd821867-47c0-4b38-a84b-69ce55180f62",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Banco: Sincronizar (webhook)\nWebhook POST /webhook/cecip-banco (header x-cecip-secret). Lo llama el botón 'Sincronizar con Santander' del ERP con { desde, hasta, callback_url }. Responde 202, consulta Santander y envía los movimientos al ERP.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "a4347d1e-4743-4293-b3a8-f0dedcb6a4fb",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cecip-banco",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "0e01ec68-31b1-4e4b-ba91-08abad66bb0d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ywg3i5pRizGPhbcD",
+          "name": "CeCIP ERP · Clave compartida"
+        }
+      }
+    },
+    {
+      "id": "881745f5-96f0-481c-bfd2-9455fd7b877f",
+      "name": "Validar pedido",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "85de7f32-26e4-4e95-8d30-cefb295c3bef",
+              "name": "result",
+              "type": "object",
+              "value": "={{ (() => {\n  const b = $json.body || {};\n  const re = /^\\d{4}-\\d{2}-\\d{2}$/;\n  const errores = [];\n  if (!re.test(String(b.desde || ''))) errores.push('\"desde\" tiene que ser YYYY-MM-DD');\n  if (!re.test(String(b.hasta || ''))) errores.push('\"hasta\" tiene que ser YYYY-MM-DD');\n  if (!errores.length) {\n    const dias = (Date.parse(b.hasta) - Date.parse(b.desde)) / 86400000;\n    if (dias < 0) errores.push('\"desde\" no puede ser posterior a \"hasta\"');\n    if (dias > 92) errores.push('El rango máximo es de 92 días');\n  }\n  if (!/^https:\\/\\//.test(String(b.callback_url || ''))) errores.push('\"callback_url\" tiene que ser una URL https');\n  return errores.length ? { valid: false, validationError: errores.join('; ') } : { valid: true, desde: b.desde, hasta: b.hasta, callback_url: b.callback_url };\n})() }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "2e432516-2bfc-492f-b0ac-34deb9c69705",
+      "name": "¿Pedido válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "add63d0b-bf95-4561-b9f1-f0b20d66ee6e",
+              "leftValue": "={{ $json.result.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "af8c3ec4-3296-4282-a216-c2142421c24d",
+      "name": "Responder 202",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        228
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ aceptado: true, mensaje: 'Consultando Santander: los movimientos llegan al ERP en unos instantes.' }) }}",
+        "options": {
+          "responseCode": 202,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "9cfe5e49-cac1-4c3c-838d-a15494a2eb9a",
+      "name": "Responder 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        426
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'validation_error', message: $json.result.validationError }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "f6a7c5f6-2ab2-4dab-8124-5ff464209385",
+      "name": "Obtener movimientos",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        228
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "lryvdoVDOtpkUPuQ",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Santander: Obtener movimientos"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "desde": "={{ $('Validar pedido').first().json.result.desde }}",
+            "hasta": "={{ $('Validar pedido').first().json.result.hasta }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "desde",
+              "displayName": "desde",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "hasta",
+              "displayName": "hasta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "7059a0c2-647e-445a-a3d0-4b901cabd13e",
+      "name": "¿Hay movimientos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        228
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "439ae07d-ead6-498a-81db-50aa011b919a",
+              "leftValue": "={{ ($json.movimientos || []).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "97a03c07-0e73-4d8a-80d3-f9a4d91f202b",
+      "name": "Enviar al ERP",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1560,
+        192
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "zODrtOAVa1FCYVU5",
+          "mode": "list",
+          "cachedResultName": "CeCIP · ERP: Enviar resultado"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $('Validar pedido').first().json.result.callback_url }}",
+            "cuerpo": "={{ { banco: 'Santander', movimientos: $json.movimientos } }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "cuerpo",
+              "displayName": "cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "0107c665-5ccc-46e5-8962-29fa19bc2c8a",
+      "name": "Sin movimientos nuevos",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        354
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar pedido": {
+      "main": [
+        [
+          {
+            "node": "¿Pedido válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Pedido válido?": {
+      "main": [
+        [
+          {
+            "node": "Responder 202",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder 202": {
+      "main": [
+        [
+          {
+            "node": "Obtener movimientos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener movimientos": {
+      "main": [
+        [
+          {
+            "node": "¿Hay movimientos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay movimientos?": {
+      "main": [
+        [
+          {
+            "node": "Enviar al ERP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin movimientos nuevos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "f92XGaS4QQDmCTs5"
+  }
+}

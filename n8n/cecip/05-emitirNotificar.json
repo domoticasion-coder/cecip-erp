@@ -1,0 +1,385 @@
+{
+  "name": "CeCIP · Facturas: Emitir y notificar",
+  "nodes": [
+    {
+      "id": "4b9c6e76-04cb-4207-9ee1-73cedeb2a8f1",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Facturas: Emitir y notificar\nSub-workflow (una factura). Entradas: factura, receptor, emisor (object), callback_url (string). Emite en ARCA y avisa el resultado al ERP. Devuelve { factura_id, avisado }.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "73deb37c-ba04-4081-9a50-53b9504dc64c",
+      "name": "Al ejecutarse desde otro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "factura",
+              "type": "object"
+            },
+            {
+              "name": "receptor",
+              "type": "object"
+            },
+            {
+              "name": "emisor",
+              "type": "object"
+            },
+            {
+              "name": "callback_url",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6848033b-e910-4b59-a400-a2bec92375f2",
+      "name": "Config",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MsW2RwiVb6lk8ph0",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Config"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "a32c1547-c020-4638-916c-911600c47a31",
+      "name": "Emitir en ARCA",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "tySiEghsUcD2Jl4n",
+          "mode": "list",
+          "cachedResultName": "CeCIP · ARCA: Emitir comprobante"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "factura": "={{ $('Al ejecutarse desde otro workflow').first().json.factura }}",
+            "receptor": "={{ $('Al ejecutarse desde otro workflow').first().json.receptor }}",
+            "emisor": "={{ $('Al ejecutarse desde otro workflow').first().json.emisor }}",
+            "ambiente": "={{ $json.ambiente_arca }}",
+            "dir": "={{ $json.arca_dir }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "factura",
+              "displayName": "factura",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "receptor",
+              "displayName": "receptor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "emisor",
+              "displayName": "emisor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "ambiente",
+              "displayName": "ambiente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "dir",
+              "displayName": "dir",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "3a808345-d8dc-4d53-a627-a2054ddc05e7",
+      "name": "Armar aviso",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        780,
+        228
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "99cbdd01-4c77-4d09-b6bf-de9437e1bb93",
+              "name": "cuerpo",
+              "type": "object",
+              "value": "={{ $json.ok ? { factura_id: $json.factura_id, cae: $json.cae, cae_vencimiento: $json.cae_vencimiento, numero: $json.numero, pdf_url: null } : { factura_id: $json.factura_id, error: $json.error } }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "2fb78444-e406-41a1-bde0-baa0c18bf59d",
+      "name": "Armar aviso de error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        780,
+        426
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d0547ad3-a72e-4b57-9742-13550e1f600c",
+              "name": "cuerpo",
+              "type": "object",
+              "value": "={{ { factura_id: $('Al ejecutarse desde otro workflow').first().json.factura.id, error: 'Falla interna en n8n al emitir: ' + String($json.error?.message || $json.error || '').slice(0, 300) } }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "7e5878ad-d066-4255-8163-9c772eb5df11",
+      "name": "Avisar al ERP",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "zODrtOAVa1FCYVU5",
+          "mode": "list",
+          "cachedResultName": "CeCIP · ERP: Enviar resultado"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $('Al ejecutarse desde otro workflow').first().json.callback_url }}",
+            "cuerpo": "={{ $json.cuerpo }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "cuerpo",
+              "displayName": "cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "22965cf3-8187-4c24-a0f0-ccef023f34b3",
+      "name": "Return",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "96abd72f-9eb5-4585-bc42-05cb4e8d77dd",
+              "name": "factura_id",
+              "type": "string",
+              "value": "={{ $('Al ejecutarse desde otro workflow').first().json.factura.id }}"
+            },
+            {
+              "id": "3b3fd88f-6475-489c-84a5-cd8a096596dd",
+              "name": "avisado",
+              "type": "boolean",
+              "value": "={{ $json.ok }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Al ejecutarse desde otro workflow": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Emitir en ARCA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emitir en ARCA": {
+      "main": [
+        [
+          {
+            "node": "Armar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar aviso de error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso": {
+      "main": [
+        [
+          {
+            "node": "Avisar al ERP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso de error": {
+      "main": [
+        [
+          {
+            "node": "Avisar al ERP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar al ERP": {
+      "main": [
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

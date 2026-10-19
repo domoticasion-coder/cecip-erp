@@ -35,11 +35,12 @@ export function EnviarEmailModal({
     setSending(true);
     setError(null);
     try {
-      const r = await api<{ enviados: number; errores: { socio: string; error: string }[] }>("comunicaciones/enviar", {
+      const r = await api<{ enviados: number; encolados?: boolean; errores: { socio: string; error: string }[] }>("comunicaciones/enviar", {
         socio_ids: socioIds, asunto, cuerpo, comunicado_id: comunicadoId, imagen_url: imagen,
       });
       toast(
-        `Enviados: ${r.enviados}.` + (r.errores.length ? `\nNo enviados: ${r.errores.length} (ver historial de envíos).` : ""),
+        (r.encolados ? `Se están enviando ${r.enviados} emails (el resultado de cada uno aparece en el historial de envíos).` : `Enviados: ${r.enviados}.`) +
+          (r.errores.length ? `\nNo enviados: ${r.errores.length} (ver historial de envíos).` : ""),
         r.errores.length && !r.enviados ? "error" : "ok"
       );
       invalidate("envios");

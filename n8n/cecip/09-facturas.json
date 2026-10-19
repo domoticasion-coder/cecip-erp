@@ -1,0 +1,313 @@
+{
+  "name": "CeCIP · Facturas: Recibir lote (webhook)",
+  "nodes": [
+    {
+      "id": "fab62d6b-1790-431b-896d-8c1887de11b2",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Facturas: Recibir lote (webhook)\nWebhook POST /webhook/cecip-facturas (header x-cecip-secret). Recibe { evento:'emitir_lote', callback_url, emisor, facturas:[{factura, receptor}] } o una sola factura ('emitir_factura'). Responde 202 y emite las facturas de a una (en orden, para no pisar la numeración de ARCA), avisando cada resultado al ERP.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "b6b0962f-08c6-4ca2-b5c9-d6224390f11a",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cecip-facturas",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "cd3f73bd-655b-4d2b-98d7-c34419992b2d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ywg3i5pRizGPhbcD",
+          "name": "CeCIP ERP · Clave compartida"
+        }
+      }
+    },
+    {
+      "id": "0958d08c-ea7b-455e-b902-6a0b48c78b33",
+      "name": "Validar lote",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "83627ff8-721a-4389-baec-490ff018f85a",
+              "name": "result",
+              "type": "object",
+              "value": "={{ (() => {\n  const b = $json.body || {};\n  const lista = b.evento === 'emitir_factura' ? [{ factura: b.factura, receptor: b.receptor }] : (Array.isArray(b.facturas) ? b.facturas : null);\n  const errores = [];\n  if (!lista) errores.push('Falta \"facturas\" (lote) o \"factura\" (una sola)');\n  else if (lista.length === 0) errores.push('El lote está vacío');\n  else if (lista.length > 300) errores.push('Máximo 300 facturas por lote');\n  if (!/^https:\\/\\//.test(String(b.callback_url || ''))) errores.push('\"callback_url\" tiene que ser una URL https');\n  if (!b.emisor || typeof b.emisor !== 'object') errores.push('Falta \"emisor\"');\n  (lista || []).forEach((it, i) => {\n    const f = it && it.factura, r = it && it.receptor;\n    if (!f || !/^[0-9a-f-]{36}$/i.test(String(f.id || ''))) errores.push('Factura ' + (i + 1) + ': falta el id');\n    else {\n      if (![1, 6, 11].includes(Number(f.cbte_tipo))) errores.push('Factura ' + (i + 1) + ': tipo de comprobante inválido');\n      if (!(Number(f.total) > 0)) errores.push('Factura ' + (i + 1) + ': el total tiene que ser mayor a 0');\n      if (!/^\\d{4}-\\d{2}-\\d{2}/.test(String(f.fecha || ''))) errores.push('Factura ' + (i + 1) + ': fecha inválida');\n    }\n    if (!r || !r.nombre) errores.push('Factura ' + (i + 1) + ': falta el receptor');\n  });\n  if (errores.length) return { valid: false, validationError: errores.slice(0, 20).join('; '), cantidad: 0 };\n  return { valid: true, cantidad: lista.length, items: lista.map((it) => ({ factura: it.factura, receptor: it.receptor, emisor: b.emisor, callback_url: b.callback_url })) };\n})() }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "c2d732f0-408c-4350-9999-420be7b92392",
+      "name": "¿Lote válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4befa602-c1fd-4b9e-ba95-7f70044f0c5f",
+              "leftValue": "={{ $json.result.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "60749831-9152-4f3e-9039-99ccd25eaf96",
+      "name": "Responder 202 (aceptado)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        228
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ aceptadas: $json.result.cantidad, lote: $execution.id, mensaje: 'Las facturas se emiten de a una en ARCA y el resultado de cada una llega al callback.' }) }}",
+        "options": {
+          "responseCode": 202,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "a95bed81-a39f-44e7-9b83-4226cf0760a7",
+      "name": "Responder 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        426
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'validation_error', message: $json.result.validationError }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "9d7b2708-a46f-4d5d-a7ad-0e13679623ec",
+      "name": "Separar facturas",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        228
+      ],
+      "parameters": {
+        "fieldToSplitOut": "result.items",
+        "options": {}
+      }
+    },
+    {
+      "id": "b26c2cb3-a374-4679-acb0-b54c8728747b",
+      "name": "Emitir y notificar (una por vez)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1300,
+        228
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "fmYwJf4gxIffZYmo",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Facturas: Emitir y notificar"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "factura": "={{ $json.factura }}",
+            "receptor": "={{ $json.receptor }}",
+            "emisor": "={{ $json.emisor }}",
+            "callback_url": "={{ $json.callback_url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "factura",
+              "displayName": "factura",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "receptor",
+              "displayName": "receptor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "emisor",
+              "displayName": "emisor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "callback_url",
+              "displayName": "callback_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar lote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar lote": {
+      "main": [
+        [
+          {
+            "node": "¿Lote válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Lote válido?": {
+      "main": [
+        [
+          {
+            "node": "Responder 202 (aceptado)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder 202 (aceptado)": {
+      "main": [
+        [
+          {
+            "node": "Separar facturas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar facturas": {
+      "main": [
+        [
+          {
+            "node": "Emitir y notificar (una por vez)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "f92XGaS4QQDmCTs5"
+  }
+}

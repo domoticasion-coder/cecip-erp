@@ -1,0 +1,132 @@
+{
+  "name": "CeCIP · Config",
+  "nodes": [
+    {
+      "id": "a3b63103-5a33-4c6d-83ac-36707f3c3356",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Config\nSub-workflow sin entradas. Devuelve la configuración central: ambiente_arca, arca_dir, modo_banco, santander_api_url, santander_cuenta, erp_url, email_alertas, email_remitente, tamano_lote_email, pausa_lote_seg.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "cf0d3b59-c02c-4fae-b9e1-2e6f030dce14",
+      "name": "Al ejecutarse desde otro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "1661ea56-5439-4a0f-89e9-36a1eacb8307",
+      "name": "Return config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fb445cc3-35a6-49cd-8d63-9e7a928e065a",
+              "name": "ambiente_arca",
+              "type": "string",
+              "value": "simulacion"
+            },
+            {
+              "id": "208e807c-986a-4a25-915b-bd8afa16bf6a",
+              "name": "arca_dir",
+              "type": "string",
+              "value": "/files/arca"
+            },
+            {
+              "id": "b70c8742-0699-453a-94f4-24ba8458d83e",
+              "name": "modo_banco",
+              "type": "string",
+              "value": "simulacion"
+            },
+            {
+              "id": "57c268f1-898f-4243-a4bf-a7922a53d1fb",
+              "name": "santander_api_url",
+              "type": "string",
+              "value": ""
+            },
+            {
+              "id": "7d574529-d1b6-4536-9435-b90c107c8701",
+              "name": "santander_cuenta",
+              "type": "string",
+              "value": ""
+            },
+            {
+              "id": "7e8ce10e-f371-4c8c-aec2-bc4f3dc9f5b1",
+              "name": "erp_url",
+              "type": "string",
+              "value": "https://cecip-erp.vercel.app"
+            },
+            {
+              "id": "ca516e42-133f-43de-aa30-83ae27f1a427",
+              "name": "email_alertas",
+              "type": "string",
+              "value": ""
+            },
+            {
+              "id": "6eb230d3-270d-404c-aa02-90da446f5663",
+              "name": "email_remitente",
+              "type": "string",
+              "value": "CeCIP Paraná <administracion@centrocomercialparana.com.ar>"
+            },
+            {
+              "id": "5c788903-61a4-490c-a4da-3632856d540b",
+              "name": "tamano_lote_email",
+              "type": "number",
+              "value": "={{ 100 }}"
+            },
+            {
+              "id": "a7115bf6-148f-45ff-810d-a34ece8fc618",
+              "name": "pausa_lote_seg",
+              "type": "number",
+              "value": "={{ 2 }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "notes": "CONFIGURACIÓN CENTRAL DEL CeCIP (editar acá, no en cada flujo):\n- ambiente_arca: simulacion (CAE de prueba, no toca ARCA) | homologacion (ARCA de prueba) | produccion\n- arca_dir: carpeta del servidor con cecip.crt y cecip.key (certificado de ARCA)\n- modo_banco: simulacion | produccion (API de Santander)\n- email_alertas: a quién avisar si un flujo falla\nNada secreto va acá: claves y tokens van en Credenciales.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "Al ejecutarse desde otro workflow": {
+      "main": [
+        [
+          {
+            "node": "Return config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

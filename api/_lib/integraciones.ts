@@ -14,8 +14,57 @@ import { HttpError, supabaseAdmin } from "./core.js";
 export const n8nConfig = () => ({
   facturas: process.env.N8N_FACTURAS_WEBHOOK_URL || "",
   banco: process.env.N8N_BANCO_WEBHOOK_URL || "",
+  envios: process.env.N8N_ENVIOS_WEBHOOK_URL || "",
   secreto: process.env.N8N_SECRET || "",
 });
+
+/** Datos de un email para el envío masivo vía n8n; "meta" vuelve en el resultado para registrarlo */
+export interface EmailEncolado {
+  to: string;
+  cc?: string[];
+  subject: string;
+  html: string;
+  text?: string;
+  meta: { socio_id: string | null; comunicado_id?: string | null; tipo: string; created_by: string | null };
+}
+
+/**
+ * Envío masivo de emails: si está configurado N8N_ENVIOS_WEBHOOK_URL, el ERP le pasa la lista
+ * completa a n8n (que la envía por lotes con pausas y avisa cada resultado a
+ * /api/integraciones/envios-resultado). Devuelve null si n8n no está configurado.
+ */
+export async function encolarEmails(origin: string, mensajes: EmailEncolado[]): Promise<{ encolados: number } | null> {
+  const url = n8nConfig().envios;
+  if (!url || !mensajes.length) return null;
+  await llamarN8n(url, {
+    evento: "enviar_emails",
+    callback_url: `${origin}/api/integraciones/envios-resultado`,
+    from: process.env.EMAIL_FROM,
+    reply_to: process.env.EMAIL_REPLY_TO || null,
+    mensajes,
+  });
+  return { encolados: mensajes.length };
+}
+
+/** Resultados del envío masivo que informa n8n: se registran en el historial de envíos */
+export async function registrarResultadosEnvio(body: any) {
+  const lista = Array.isArray(body?.resultados) ? body.resultados.slice(0, 1000) : [];
+  if (!lista.length) return { registrados: 0 };
+  const filas = lista.map((r: any) => ({
+    socio_id: /^[0-9a-f-]{36}$/i.test(String(r?.meta?.socio_id || "")) ? r.meta.socio_id : null,
+    comunicado_id: /^[0-9a-f-]{36}$/i.test(String(r?.meta?.comunicado_id || "")) ? r.meta.comunicado_id : null,
+    canal: "email",
+    tipo: ["comunicado", "recordatorio", "manual", "acceso", "comercia"].includes(r?.meta?.tipo) ? r.meta.tipo : "manual",
+    asunto: String(r?.subject || "").slice(0, 300),
+    destinatario: String(r?.to || "").slice(0, 200),
+    estado: r?.ok ? "enviado" : "error",
+    error: r?.ok ? null : String(r?.error || "Error de envío").slice(0, 500),
+    created_by: /^[0-9a-f-]{36}$/i.test(String(r?.meta?.created_by || "")) ? r.meta.created_by : null,
+  }));
+  const { error } = await supabaseAdmin().from("envios").insert(filas);
+  if (error) throw new Error(error.message);
+  return { registrados: filas.length };
+}
 
 /** Verifica que la llamada venga de n8n (header x-cecip-secret) */
 export function verificarSecreto(req: Request) {
@@ -59,7 +108,7 @@ export async function procesarFacturas(origin: string, ids?: string[]) {
   const cfgN8n = n8nConfig();
   if (!cfgN8n.facturas) return { enviadas: 0, emitidas: 0, errores: 0, sinConfigurar: true };
 
-  let q = sb.from("facturas").select("*").order("created_at").limit(40);
+  let q = sb.from("facturas").select("*").order("created_at").limit(300);
   q = ids?.length ? q.in("id", ids).in("estado", ["en_cola", "error"]) : q.eq("estado", "en_cola");
   const { data: facturas, error } = await q;
   if (error) throw new Error(error.message);
@@ -77,19 +126,17 @@ export async function procesarFacturas(origin: string, ids?: string[]) {
   ]);
   const finDeMes = (p: string) => { const d = new Date(p + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + 1, 0); return d.toISOString().slice(0, 10); };
 
-  let enviadas = 0, emitidas = 0, errores = 0;
-  for (const f of facturas) {
+  // Facturación masiva: todas las facturas viajan en UN solo pedido (lote). n8n responde enseguida
+  // (202) y las emite de a una en ARCA, en orden, avisando el resultado de cada una al callback.
+  // Así el ERP no espera a ARCA (las funciones de Vercel tienen 60 s) y la numeración no se pisa.
+  const emisor = {
+    razon_social: cfg?.nombre_institucion, cuit: digitos(cfg?.cuit), domicilio: cfg?.direccion,
+    condicion_iva: cfg?.factura_condicion_emisor, punto_venta: cfg?.factura_punto_venta,
+  };
+  const items = facturas.map((f) => {
     const ref = (cuotas || []).find((c: any) => c.id === f.cuota_id) || (cargos || []).find((c: any) => c.id === f.cargo_id);
-    const desde = ref?.periodo || f.fecha;
-    const hasta = ref?.periodo ? finDeMes(ref.periodo_hasta || ref.periodo) : f.fecha;
     const cuit = digitos(f.receptor_cuit);
-    const payload = {
-      evento: "emitir_factura",
-      callback_url: `${origin}/api/integraciones/facturas-callback`,
-      emisor: {
-        razon_social: cfg?.nombre_institucion, cuit: digitos(cfg?.cuit), domicilio: cfg?.direccion,
-        condicion_iva: cfg?.factura_condicion_emisor, punto_venta: f.punto_venta || cfg?.factura_punto_venta,
-      },
+    return {
       factura: {
         id: f.id,
         tipo: f.tipo,
@@ -98,8 +145,8 @@ export async function procesarFacturas(origin: string, ids?: string[]) {
         fecha: f.fecha,
         concepto: f.concepto,
         concepto_arca: 2, // 2 = servicios
-        servicio_desde: desde,
-        servicio_hasta: hasta,
+        servicio_desde: ref?.periodo || f.fecha,
+        servicio_hasta: ref?.periodo ? finDeMes(ref.periodo_hasta || ref.periodo) : f.fecha,
         vencimiento_pago: f.fecha,
         moneda: "PES",
         neto: Number(f.neto),
@@ -118,25 +165,31 @@ export async function procesarFacturas(origin: string, ids?: string[]) {
         email: f.receptor_email,
       },
     };
+  });
 
-    try {
-      const r = await llamarN8n(cfgN8n.facturas, payload);
-      enviadas++;
-      if (r?.cae) {
-        emitidas++;
-        await sb.from("facturas").update({
-          estado: "emitida", cae: String(r.cae), cae_vencimiento: fechaIso(r.cae_vencimiento),
-          numero: r.numero ? Number(r.numero) : null, pdf_url: r.pdf_url || null, error: null,
-          intentos: f.intentos + 1, enviada_at: new Date().toISOString(), emitida_at: new Date().toISOString(), respuesta: r,
-        }).eq("id", f.id);
-      } else if (r?.error) {
-        errores++;
-        await sb.from("facturas").update({ estado: "error", error: String(r.error), intentos: f.intentos + 1, respuesta: r }).eq("id", f.id);
-      } else {
-        await sb.from("facturas").update({ estado: "enviada", error: null, intentos: f.intentos + 1, enviada_at: new Date().toISOString(), respuesta: r }).eq("id", f.id);
-      }
-    } catch (e) {
-      errores++;
+  const ids_lote = facturas.map((f) => f.id);
+  let enviadas = 0, emitidas = 0, errores = 0;
+  try {
+    const r = await llamarN8n(cfgN8n.facturas, {
+      evento: "emitir_lote",
+      callback_url: `${origin}/api/integraciones/facturas-callback`,
+      emisor,
+      facturas: items,
+    });
+    enviadas = items.length;
+    const ahora = new Date().toISOString();
+    for (const f of facturas) {
+      await sb.from("facturas").update({ estado: "enviada", error: null, intentos: f.intentos + 1, enviada_at: ahora }).eq("id", f.id);
+    }
+    // Si n8n respondió los resultados en el momento (modo sincrónico), se registran ya
+    for (const res of Array.isArray(r?.resultados) ? r.resultados : []) {
+      const reg = await registrarResultadoFactura(res).catch(() => null);
+      if (reg?.estado === "emitida") emitidas++;
+      else if (reg?.estado === "error") errores++;
+    }
+  } catch (e) {
+    errores = ids_lote.length;
+    for (const f of facturas) {
       await sb.from("facturas").update({ estado: "error", error: (e as Error).message.slice(0, 500), intentos: f.intentos + 1 }).eq("id", f.id);
     }
   }

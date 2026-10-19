@@ -1,6 +1,6 @@
 import { HttpError, getCaller, handle, json, readJson, requireStaff } from "../_lib/core.js";
 import {
-  guardarMovimientosBanco, n8nConfig, procesarFacturas, registrarResultadoFactura, sincronizarBanco, verificarSecreto,
+  guardarMovimientosBanco, n8nConfig, procesarFacturas, registrarResultadoFactura, registrarResultadosEnvio, sincronizarBanco, verificarSecreto,
 } from "../_lib/integraciones.js";
 
 /**
@@ -14,6 +14,7 @@ import {
  *  Desde n8n (header x-cecip-secret = N8N_SECRET):
  *   POST /api/integraciones/facturas-callback   { factura_id, cae, cae_vencimiento, numero, pdf_url } | { factura_id, error }
  *   POST /api/integraciones/banco-movimientos   { banco?, movimientos: [{ id, fecha, descripcion, monto, saldo, referencia, ... }] }
+ *   POST /api/integraciones/envios-resultado    { resultados: [{ to, subject, ok, error?, meta }] }
  */
 const accion = (req: Request) => new URL(req.url).pathname.split("/").filter(Boolean).pop() || "";
 
@@ -26,6 +27,7 @@ export const GET = handle(async (req) => {
   return json({
     facturas: Boolean(cfg.facturas),
     banco: Boolean(cfg.banco),
+    envios: Boolean(cfg.envios),
     secreto: Boolean(cfg.secreto),
     callback_facturas: `${origin}/api/integraciones/facturas-callback`,
     endpoint_banco: `${origin}/api/integraciones/banco-movimientos`,
@@ -57,6 +59,10 @@ export const POST = handle(async (req) => {
       verificarSecreto(req);
       const body = await readJson<{ banco?: string; movimientos?: unknown[] }>(req);
       return json(await guardarMovimientosBanco((body.movimientos || []) as any[], body.banco || "Santander"));
+    }
+    case "envios-resultado": {
+      verificarSecreto(req);
+      return json(await registrarResultadosEnvio(await readJson(req)));
     }
     default:
       throw new HttpError(404, "Acción inexistente.");

@@ -1,0 +1,418 @@
+{
+  "name": "CeCIP · Envíos: Recibir email masivo (webhook)",
+  "nodes": [
+    {
+      "id": "7295444c-4a60-4110-bfb6-7b42c3f9a206",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · Envíos: Recibir email masivo (webhook)\nWebhook POST /webhook/cecip-envios (header x-cecip-secret). Recibe { from, reply_to, callback_url, mensajes:[{ to, cc, subject, html, text, meta }] } (comunicados, difusión ComercIA). Responde 202, envía por lotes de 100 con pausa (Resend) e informa cada lote al ERP para el historial de envíos.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "a1c65e0c-fb9a-4860-844f-fcf03b5b38a6",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cecip-envios",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "be94073a-79d1-4044-bba4-e634f612e83c",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ywg3i5pRizGPhbcD",
+          "name": "CeCIP ERP · Clave compartida"
+        }
+      }
+    },
+    {
+      "id": "810fddb0-8674-4b98-b080-87e7c43b186c",
+      "name": "Validar envío",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1a709345-527b-4c1b-a2ba-3d82e79b1a91",
+              "name": "result",
+              "type": "object",
+              "value": "={{ (() => {\n  const b = $json.body || {};\n  const errores = [];\n  const lista = Array.isArray(b.mensajes) ? b.mensajes : null;\n  if (!lista) errores.push('Falta \"mensajes\"');\n  else if (!lista.length) errores.push('No hay mensajes');\n  else if (lista.length > 5000) errores.push('Máximo 5000 emails por envío');\n  if (!b.from) errores.push('Falta \"from\" (remitente)');\n  if (!/^https:\\/\\//.test(String(b.callback_url || ''))) errores.push('\"callback_url\" tiene que ser una URL https');\n  const malos = (lista || []).filter((m) => !m || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(m.to || '')) || !m.subject || !m.html).length;\n  if (malos) errores.push(malos + ' mensaje(s) sin destinatario válido, asunto o contenido');\n  return errores.length ? { valid: false, validationError: errores.join('; ') } : { valid: true, cantidad: lista.length };\n})() }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "0ae1255e-4299-450e-8412-06ddc3f19958",
+      "name": "¿Envío válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9844c46e-d89c-46e4-b505-25aca0c423a6",
+              "leftValue": "={{ $json.result.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "66e82abf-ee89-436a-abbe-7b9835fbfccd",
+      "name": "Responder 202",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        228
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ aceptados: $json.result.cantidad, envio: $execution.id }) }}",
+        "options": {
+          "responseCode": 202,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "0439e074-c44e-4263-b1a8-509e1d9de29c",
+      "name": "Responder 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        426
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'validation_error', message: $json.result.validationError }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "d06897b9-8c1d-490f-8926-0aa7746e5aad",
+      "name": "Config",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        228
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MsW2RwiVb6lk8ph0",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Config"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "85b57d13-5fb0-4bd6-8d25-33512ce326cd",
+      "name": "Armar lotes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        228
+      ],
+      "parameters": {
+        "jsCode": "// Parte la lista en lotes (100 por defecto: el máximo de Resend por llamada)\nconst b = $('Webhook').first().json.body;\nconst c = $('Config').first().json;\nconst tam = Math.max(1, Math.min(100, Number(c.tamano_lote_email) || 100));\nconst out = [];\nfor (let i = 0; i < b.mensajes.length; i += tam) {\n  out.push({ json: { mensajes: b.mensajes.slice(i, i + tam), from: b.from || c.email_remitente, reply_to: b.reply_to || '', pausa_seg: Number(c.pausa_lote_seg) || 2, callback_url: b.callback_url } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "8a3e4bf6-44c5-4748-9063-759bdd8f3bde",
+      "name": "Enviar lote (de a uno)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1560,
+        228
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "eIY9E0DZ2x24XOXg",
+          "mode": "list",
+          "cachedResultName": "CeCIP · Email: Enviar lote por Resend"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "mensajes": "={{ $json.mensajes }}",
+            "from": "={{ $json.from }}",
+            "reply_to": "={{ $json.reply_to }}",
+            "pausa_seg": "={{ $json.pausa_seg }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mensajes",
+              "displayName": "mensajes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "from",
+              "displayName": "from",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "reply_to",
+              "displayName": "reply_to",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "pausa_seg",
+              "displayName": "pausa_seg",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "ed641b17-2ead-44de-b082-f68bba340f45",
+      "name": "Informar resultados al ERP",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1820,
+        228
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "zODrtOAVa1FCYVU5",
+          "mode": "list",
+          "cachedResultName": "CeCIP · ERP: Enviar resultado"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $('Webhook').first().json.body.callback_url }}",
+            "cuerpo": "={{ { resultados: $json.resultados } }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "cuerpo",
+              "displayName": "cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar envío": {
+      "main": [
+        [
+          {
+            "node": "¿Envío válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Envío válido?": {
+      "main": [
+        [
+          {
+            "node": "Responder 202",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder 202": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Armar lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar lotes": {
+      "main": [
+        [
+          {
+            "node": "Enviar lote (de a uno)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar lote (de a uno)": {
+      "main": [
+        [
+          {
+            "node": "Informar resultados al ERP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "f92XGaS4QQDmCTs5"
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "name": "CeCIP · ERP: Enviar resultado",
+  "nodes": [
+    {
+      "id": "bc4c26b0-95bc-483f-bf3f-bfcdbf312f46",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · ERP: Enviar resultado\nSub-workflow. Entradas: url (string, endpoint /api/integraciones/... del ERP), cuerpo (object). Hace POST con el header x-cecip-secret (credencial 'CeCIP ERP · Clave compartida'), 3 reintentos. Devuelve { ok, respuesta } o { ok:false, error }.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "c9ad5e39-148e-4f01-be18-227a3d32af19",
+      "name": "Al ejecutarse desde otro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "url",
+              "type": "string"
+            },
+            {
+              "name": "cuerpo",
+              "type": "object"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "589f8019-6b34-4995-8641-7bccc0eab623",
+      "name": "POST al ERP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.cuerpo) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ywg3i5pRizGPhbcD",
+          "name": "CeCIP ERP · Clave compartida"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "dda8ded9-820f-4c9d-bd5a-34a0d13a4241",
+      "name": "Return OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        520,
+        210
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "94fc6d43-43cb-4217-81c8-c2a8e4ed9282",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ true }}"
+            },
+            {
+              "id": "9a490a58-a58f-40f4-aab3-d9e4b67e8b96",
+              "name": "respuesta",
+              "type": "object",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "95d774c0-98ca-4bfc-8767-8b08d295b06e",
+      "name": "Return error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        520,
+        408
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7a8baea1-e708-4fbc-b668-fe2d243f045f",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ false }}"
+            },
+            {
+              "id": "dac3349d-d1c8-4e65-bc96-9dc3804bfd9d",
+              "name": "error",
+              "type": "string",
+              "value": "={{ $json.error?.message || 'El ERP no respondió' }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Al ejecutarse desde otro workflow": {
+      "main": [
+        [
+          {
+            "node": "POST al ERP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST al ERP": {
+      "main": [
+        [
+          {
+            "node": "Return OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

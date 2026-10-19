@@ -1,0 +1,505 @@
+{
+  "name": "CeCIP · ARCA: Obtener token WSAA",
+  "nodes": [
+    {
+      "id": "7f404e4f-7958-4147-ba89-5e8b3541a066",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ],
+      "parameters": {
+        "content": "## CeCIP · ARCA: Obtener token WSAA\nSub-workflow. Entradas: ambiente (homologacion|produccion), dir (carpeta con cecip.crt, cecip.key). Devuelve { ok, token, sign, expira } o { ok:false, error }. Guarda el ticket en <dir>/ta-<ambiente>.json y lo reutiliza mientras esté vigente.",
+        "width": 520,
+        "height": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "edf7267f-f783-4aed-b0a0-c8be15290907",
+      "name": "Al ejecutarse desde otro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "ambiente",
+              "type": "string"
+            },
+            {
+              "name": "dir",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2b874ac4-24fd-41a2-b1d1-4806306d4b80",
+      "name": "Leer token guardado",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.dir }}/ta-{{ $json.ambiente }}.json",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "a8542204-1f5a-4a06-a6ee-e01d126ffe65",
+      "name": "¿Token vigente?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Reutiliza el ticket de acceso (dura 12 h): ARCA rechaza pedir uno nuevo si el anterior sigue vigente.\nconst item = $input.first();\nlet ta = null;\ntry {\n  if (item.binary?.data) ta = JSON.parse((await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'));\n} catch (e) { ta = null; }\nconst vigente = !!(ta && ta.token && ta.sign && new Date(ta.expira).getTime() - Date.now() > 10 * 60 * 1000);\nreturn [{ json: vigente ? { vigente, ok: true, token: ta.token, sign: ta.sign, expira: ta.expira } : { vigente: false } }];"
+      }
+    },
+    {
+      "id": "92958043-a626-4a56-bbb5-19f24454fd46",
+      "name": "¿Vigente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "97a3a402-09e8-4cc4-ae58-17f12fd1246a",
+              "leftValue": "={{ $json.vigente }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4487d82b-2270-4a72-b3d0-8b99e53cf4c2",
+      "name": "Return token (cache)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        174
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bc814481-93ba-437e-9361-a78a3445d10c",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ true }}"
+            },
+            {
+              "id": "b64bff71-1639-4063-8b8b-e952dba542dc",
+              "name": "token",
+              "type": "string",
+              "value": "={{ $json.token }}"
+            },
+            {
+              "id": "0b46bfc9-df13-4e02-916e-82b9d6e5b1f2",
+              "name": "sign",
+              "type": "string",
+              "value": "={{ $json.sign }}"
+            },
+            {
+              "id": "1192868d-5d85-4ab5-bc36-9037f73005cb",
+              "name": "expira",
+              "type": "string",
+              "value": "={{ $json.expira }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "ad0b7dd9-2bc4-4e93-91eb-cfcb7192d345",
+      "name": "Leer certificado y clave",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        408
+      ],
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Al ejecutarse desde otro workflow').first().json.dir }}/cecip.{crt,key}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": false
+    },
+    {
+      "id": "99f0f3d8-1b3d-4587-bed4-e07ed8762a98",
+      "name": "Firmar TRA (WSAA)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        408
+      ],
+      "parameters": {
+        "jsCode": "// Arma el pedido de acceso (TRA), lo firma con el certificado del CeCIP (CMS SHA-256) y prepara el SOAP.\n// Requiere en el servidor de n8n: NODE_FUNCTION_ALLOW_BUILTIN=crypto\nconst crypto = require('crypto');\n// Firma CMS (PKCS#7 SignedData, SHA-256 + RSA) del TRA de ARCA usando solo el módulo crypto de Node.\n// Se usa tal cual dentro del Code node de n8n (requiere NODE_FUNCTION_ALLOW_BUILTIN=crypto).\nfunction firmarCms(traXml, certPem, keyPem, crypto) {\n  const len = (n) => {\n    if (n < 0x80) return Buffer.from([n]);\n    const b = [];\n    while (n > 0) { b.unshift(n & 0xff); n >>= 8; }\n    return Buffer.from([0x80 | b.length, ...b]);\n  };\n  const tlv = (tag, ...partes) => { const c = Buffer.concat(partes); return Buffer.concat([Buffer.from([tag]), len(c.length), c]); };\n  const seq = (...p) => tlv(0x30, ...p);\n  const set = (...p) => tlv(0x31, ...p);\n  const oid = (s) => {\n    const n = s.split(\".\").map(Number);\n    const out = [40 * n[0] + n[1]];\n    for (const v of n.slice(2)) {\n      const b = [v & 0x7f];\n      let x = v >> 7;\n      while (x > 0) { b.unshift((x & 0x7f) | 0x80); x >>= 7; }\n      out.push(...b);\n    }\n    return tlv(0x06, Buffer.from(out));\n  };\n  const nulo = Buffer.from([0x05, 0x00]);\n  const entero = (n) => tlv(0x02, Buffer.from([n]));\n  const octetos = (b) => tlv(0x04, b);\n  const ctx = (n, ...p) => tlv(0xa0 + n, ...p);\n\n  // Lector DER mínimo: devuelve los elementos hijos de una estructura (con sus bytes crudos)\n  const hijos = (buf) => {\n    const out = [];\n    let i = 0;\n    while (i < buf.length) {\n      const tag = buf[i];\n      let l = buf[i + 1], h = 2;\n      if (l & 0x80) { const nb = l & 0x7f; l = 0; for (let k = 0; k < nb; k++) l = (l << 8) | buf[i + 2 + k]; h = 2 + nb; }\n      out.push({ tag, raw: buf.subarray(i, i + h + l), contenido: buf.subarray(i + h, i + h + l) });\n      i += h + l;\n    }\n    return out;\n  };\n\n  const certDer = Buffer.from(certPem.replace(/-----[^-]+-----/g, \"\").replace(/\\s+/g, \"\"), \"base64\");\n  const tbs = hijos(hijos(certDer)[0].contenido)[0];\n  const campos = hijos(tbs.contenido);\n  const desde = campos[0].tag === 0xa0 ? 1 : 0; // el campo version es opcional\n  const serial = campos[desde].raw;\n  const emisor = campos[desde + 2].raw;\n\n  const OID = {\n    data: \"1.2.840.113549.1.7.1\", signedData: \"1.2.840.113549.1.7.2\", sha256: \"2.16.840.1.101.3.4.2.1\",\n    rsa: \"1.2.840.113549.1.1.1\", contentType: \"1.2.840.113549.1.9.3\", messageDigest: \"1.2.840.113549.1.9.4\",\n    signingTime: \"1.2.840.113549.1.9.5\",\n  };\n  const contenido = Buffer.from(traXml, \"utf8\");\n  const digest = crypto.createHash(\"sha256\").update(contenido).digest();\n  const t = new Date();\n  const p2 = (x) => String(x).padStart(2, \"0\");\n  const utc = `${p2(t.getUTCFullYear() % 100)}${p2(t.getUTCMonth() + 1)}${p2(t.getUTCDate())}${p2(t.getUTCHours())}${p2(t.getUTCMinutes())}${p2(t.getUTCSeconds())}Z`;\n\n  // Atributos firmados (SET OF ordenado por su codificación DER)\n  const atributos = [\n    seq(oid(OID.contentType), set(oid(OID.data))),\n    seq(oid(OID.signingTime), set(tlv(0x17, Buffer.from(utc, \"ascii\")))),\n    seq(oid(OID.messageDigest), set(octetos(digest))),\n  ].sort(Buffer.compare);\n  const atributosSet = set(...atributos);\n  const firma = crypto.createSign(\"RSA-SHA256\").update(atributosSet).sign(keyPem);\n\n  const algSha256 = seq(oid(OID.sha256), nulo);\n  const signerInfo = seq(\n    entero(1),\n    seq(emisor, serial),\n    algSha256,\n    Buffer.concat([Buffer.from([0xa0]), atributosSet.subarray(1)]), // [0] IMPLICIT\n    seq(oid(OID.rsa), nulo),\n    octetos(firma),\n  );\n  const signedData = seq(\n    entero(1),\n    set(algSha256),\n    seq(oid(OID.data), ctx(0, octetos(contenido))),\n    ctx(0, certDer),\n    set(signerInfo),\n  );\n  return seq(oid(OID.signedData), ctx(0, signedData)).toString(\"base64\");\n}\n\n\nconst items = $input.all();\nlet cert = null, key = null;\nfor (let i = 0; i < items.length; i++) {\n  const nombre = (items[i].binary?.data?.fileName || '').toLowerCase();\n  const contenido = (await this.helpers.getBinaryDataBuffer(i, 'data')).toString('utf8');\n  if (nombre.endsWith('.crt')) cert = contenido;\n  if (nombre.endsWith('.key')) key = contenido;\n}\nif (!cert || !key) throw new Error('Falta cecip.crt o cecip.key en la carpeta del certificado de ARCA');\nconst amb = $('Al ejecutarse desde otro workflow').first().json.ambiente;\nconst ahora = DateTime.now().setZone('America/Argentina/Buenos_Aires');\nconst tra = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><loginTicketRequest version=\"1.0\"><header>'\n  + '<uniqueId>' + Math.floor(Date.now() / 1000) + '</uniqueId>'\n  + '<generationTime>' + ahora.minus({ minutes: 10 }).toISO({ suppressMilliseconds: true }) + '</generationTime>'\n  + '<expirationTime>' + ahora.plus({ minutes: 10 }).toISO({ suppressMilliseconds: true }) + '</expirationTime>'\n  + '</header><service>wsfe</service></loginTicketRequest>';\nconst cms = firmarCms(tra, cert, key, crypto);\nconst xml = '<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wsaa=\"http://wsaa.view.sua.dvadac.desein.afip.gov\">'\n  + '<soapenv:Header/><soapenv:Body><wsaa:loginCms><wsaa:in0>' + cms + '</wsaa:in0></wsaa:loginCms></soapenv:Body></soapenv:Envelope>';\nconst url = amb === 'produccion' ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms' : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms';\nreturn [{ json: { xml, url } }];"
+      }
+    },
+    {
+      "id": "d6c28449-2d31-4c0e-ab81-5db5224ce6bf",
+      "name": "ARCA: login (WSAA)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        408
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "SOAPAction",
+              "value": "\"\""
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/xml; charset=utf-8",
+        "body": "={{ $json.xml }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "fullResponse": false,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "d660e7db-db1d-4487-87d3-42876b5e62a3",
+      "name": "Leer ticket de acceso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        408
+      ],
+      "parameters": {
+        "jsCode": "const txt = String($input.first().json.data || '');\nconst des = txt.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&amp;/g, '&');\nconst tomar = (tag) => (des.match(new RegExp('<' + tag + '>([\\\\s\\\\S]*?)</' + tag + '>')) || [])[1];\nconst token = tomar('token'), sign = tomar('sign'), expira = tomar('expirationTime');\nif (!token || !sign) {\n  const falla = tomar('faultstring') || 'ARCA no devolvió el ticket de acceso';\n  return [{ json: { ok: false, error: 'WSAA: ' + falla.slice(0, 300) } }];\n}\nconst ta = { token, sign, expira };\nconst bin = await this.helpers.prepareBinaryData(Buffer.from(JSON.stringify(ta)), 'ta.json', 'application/json');\nreturn [{ json: { ok: true, ...ta }, binary: { data: bin } }];"
+      }
+    },
+    {
+      "id": "cc8e4a9b-34bb-49be-92f0-d0f4c03046d6",
+      "name": "¿Ticket OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2080,
+        408
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7a8f86d1-755c-45d1-b774-392f4e7be3ca",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f3e8276c-fa5f-49d9-9248-d616a15e1df5",
+      "name": "Guardar token",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        354
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Al ejecutarse desde otro workflow').first().json.dir }}/ta-{{ $('Al ejecutarse desde otro workflow').first().json.ambiente }}.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "f4b6af3f-5f93-4bbf-9d7c-7cb2f6eb4a0c",
+      "name": "Return token (nuevo)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2600,
+        354
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c253e95a-a57f-43c7-bc98-980648de25ca",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ true }}"
+            },
+            {
+              "id": "738d05f3-ec2f-4139-96dc-4159d9526638",
+              "name": "token",
+              "type": "string",
+              "value": "={{ $('Leer ticket de acceso').first().json.token }}"
+            },
+            {
+              "id": "668d4b13-0449-4579-9053-3d397fc7a0f8",
+              "name": "sign",
+              "type": "string",
+              "value": "={{ $('Leer ticket de acceso').first().json.sign }}"
+            },
+            {
+              "id": "9f6e45f4-c18e-40c5-b310-cc75cf3a13d6",
+              "name": "expira",
+              "type": "string",
+              "value": "={{ $('Leer ticket de acceso').first().json.expira }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "28ffc45b-82f2-4774-91ee-3ae209c94006",
+      "name": "Return error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2340,
+        552
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9c445d38-d8e8-4988-aa4a-b8a276ea641a",
+              "name": "ok",
+              "type": "boolean",
+              "value": "={{ false }}"
+            },
+            {
+              "id": "ac6afacc-d210-4310-a50f-5523d62d6e73",
+              "name": "error",
+              "type": "string",
+              "value": "={{ $json.error?.message || $json.error || 'No se pudo obtener el acceso a ARCA (WSAA)' }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Al ejecutarse desde otro workflow": {
+      "main": [
+        [
+          {
+            "node": "Leer token guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer token guardado": {
+      "main": [
+        [
+          {
+            "node": "¿Token vigente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Token vigente?": {
+      "main": [
+        [
+          {
+            "node": "¿Vigente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Vigente?": {
+      "main": [
+        [
+          {
+            "node": "Return token (cache)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Leer certificado y clave",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer certificado y clave": {
+      "main": [
+        [
+          {
+            "node": "Firmar TRA (WSAA)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firmar TRA (WSAA)": {
+      "main": [
+        [
+          {
+            "node": "ARCA: login (WSAA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARCA: login (WSAA)": {
+      "main": [
+        [
+          {
+            "node": "Leer ticket de acceso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer ticket de acceso": {
+      "main": [
+        [
+          {
+            "node": "¿Ticket OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ticket OK?": {
+      "main": [
+        [
+          {
+            "node": "Guardar token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar token": {
+      "main": [
+        [
+          {
+            "node": "Return token (nuevo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

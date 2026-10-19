@@ -102,8 +102,8 @@ function EmailComercia() {
     setEnviando(true);
     setError(null);
     try {
-      const r = await api<{ enviados: number; errores: number }>("comercia/difundir", { asunto, cuerpo, rubro, categoria_id: categoria || undefined, imagen_url: imagen });
-      toast(`Emails enviados: ${r.enviados}.` + (r.errores ? ` No se pudieron enviar: ${r.errores}.` : ""), r.enviados ? "ok" : "error");
+      const r = await api<{ enviados: number; errores: number; encolados?: boolean }>("comercia/difundir", { asunto, cuerpo, rubro, categoria_id: categoria || undefined, imagen_url: imagen });
+      toast((r.encolados ? `Se están enviando ${r.enviados} emails.` : `Emails enviados: ${r.enviados}.`) + (r.errores ? ` No se pudieron enviar: ${r.errores}.` : ""), r.enviados ? "ok" : "error");
     } catch (e) {
       setError((e as Error).message);
     } finally {

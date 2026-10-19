@@ -1,5 +1,6 @@
 import { HttpError, env, getCaller, handle, json, readJson, requireStaff, supabaseAdmin } from "../_lib/core.js";
 import { emailLayout, emailValido, sendEmails, textToHtml } from "../_lib/email.js";
+import { encolarEmails } from "../_lib/integraciones.js";
 
 /**
  * POST /api/comercia/difundir { asunto, cuerpo, rubro?, categoria_id?, soloContar? }
@@ -46,6 +47,12 @@ export const POST = handle(async (req) => {
       pie: "Beneficio del convenio ComercIA Inteligente (CeCIP + Instituto IEC).",
     }),
   }));
+
+  // Envío masivo por n8n (si está configurado)
+  const encolado = await encolarEmails(new URL(req.url).origin, mensajes.map((m, i) => ({
+    ...m, meta: { socio_id: socios[i].id, tipo: "comercia", created_by: caller.userId },
+  })));
+  if (encolado) return json({ enviados: encolado.encolados, encolados: true, errores: 0 });
 
   const resultados = await sendEmails(mensajes);
   await sb.from("envios").insert(resultados.map((r, i) => ({
