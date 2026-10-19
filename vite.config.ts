@@ -100,9 +100,11 @@ function demoCopilotGemini(): Plugin {
         try {
           const chunks: Buffer[] = [];
           for await (const chunk of req) chunks.push(chunk as Buffer);
-          const { contexto, historial, pregunta } = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          const { contexto, historial, pregunta, ambito } = JSON.parse(Buffer.concat(chunks).toString("utf8"));
           const mod = await server.ssrLoadModule(path.join(process.cwd(), "api/_lib/copilot.ts"));
-          const respuesta = await mod.preguntarGemini(String(contexto || ""), Array.isArray(historial) ? historial : [], String(pregunta || "").slice(0, 1500));
+          const erp = ambito === "erp" ? await server.ssrLoadModule(path.join(process.cwd(), "shared/copilotErp.ts")) : null;
+          const respuesta = await mod.preguntarGemini(String(contexto || ""), Array.isArray(historial) ? historial : [],
+            String(pregunta || "").slice(0, 4000), ...(erp ? [erp.INSTRUCCIONES_ERP] : []));
           res.end(JSON.stringify({ respuesta }));
         } catch (err) {
           res.statusCode = 502;

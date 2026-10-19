@@ -28,7 +28,8 @@ export default function Eventos() {
     queryKey: ["eventos", "lista", tab],
     queryFn: async () => {
       const ahora = new Date().toISOString();
-      const q = supabase.from("eventos").select("*, inscripciones(count)");
+      // Las capacitaciones (cursos) tienen su propia sección
+      const q = supabase.from("eventos").select("*, inscripciones(count)").eq("tipo", "evento");
       const r = tab === "proximos"
         ? await q.gte("fecha_inicio", ahora).order("fecha_inicio")
         : await q.lt("fecha_inicio", ahora).order("fecha_inicio", { ascending: false }).limit(100);
@@ -48,8 +49,8 @@ export default function Eventos() {
   return (
     <>
       <PageHeader
-        title="Eventos y capacitaciones"
-        subtitle="Los eventos publicados aparecen en el portal; con el formulario público se anotan también los no socios"
+        title="Eventos"
+        subtitle="Charlas, reuniones y actividades. Los publicados aparecen en el portal; con el formulario público se anotan también los no socios. Los cursos se cargan en Capacitaciones."
         actions={puede && <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditar("nuevo")}>Nuevo evento</Button>}
       />
       <Tabs value={tab} onChange={setTab} tabs={[{ value: "proximos", label: "Próximos" }, { value: "pasados", label: "Pasados" }]} />
@@ -109,7 +110,7 @@ function EventoForm({ value, onClose }: { value: Evento | "nuevo" | null; onClos
   const invalidate = useInvalidate();
   const toast = useToast();
   const vacio = {
-    titulo: "", descripcion: "", tipo: "capacitacion" as Evento["tipo"], fecha_inicio: `${hoyISO()}T18:00`, fecha_fin: "",
+    titulo: "", descripcion: "", tipo: "evento" as Evento["tipo"], fecha_inicio: `${hoyISO()}T18:00`, fecha_fin: "",
     lugar: "Sede CeCIP", modalidad: "presencial" as Evento["modalidad"], link: "", cupo: "", costo: "0", publicado: true, inscripcion_abierta: true,
     imagen_url: null as string | null, formulario_publico: false, preguntas: [] as PreguntaFormulario[],
   };
@@ -160,12 +161,6 @@ function EventoForm({ value, onClose }: { value: Evento | "nuevo" | null; onClos
       footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={saving} onClick={guardar}>Guardar</Button></>}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Título" className="sm:col-span-2"><Input value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} /></Field>
-        <Field label="Tipo">
-          <Select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as Evento["tipo"] })}>
-            <option value="capacitacion">Capacitación</option>
-            <option value="evento">Evento</option>
-          </Select>
-        </Field>
         <Field label="Modalidad">
           <Select value={f.modalidad} onChange={(e) => setF({ ...f, modalidad: e.target.value as Evento["modalidad"] })}>
             <option value="presencial">Presencial</option>
@@ -332,7 +327,7 @@ function InscriptosModal({ evento, onClose }: { evento: Evento | null; onClose: 
 const linkPublico = (e: Pick<Evento, "slug">) => `${PORTAL_URL}/inscripcion/${e.slug}`;
 
 /** Compartir el formulario público de inscripción (WhatsApp, email, redes) */
-function CompartirModal({ evento, onClose }: { evento: Evento | null; onClose: () => void }) {
+export function CompartirModal({ evento, onClose }: { evento: Evento | null; onClose: () => void }) {
   const toast = useToast();
   if (!evento) return null;
   const url = linkPublico(evento);
@@ -371,7 +366,7 @@ function CompartirModal({ evento, onClose }: { evento: Evento | null; onClose: (
 const nuevaPregunta = (): PreguntaFormulario => ({ id: `p${Math.random().toString(36).slice(2, 8)}`, etiqueta: "", tipo: "texto", requerida: false, opciones: [] });
 
 /** Preguntas extra del formulario público */
-function EditorPreguntas({ value, onChange }: { value: PreguntaFormulario[]; onChange: (v: PreguntaFormulario[]) => void }) {
+export function EditorPreguntas({ value, onChange }: { value: PreguntaFormulario[]; onChange: (v: PreguntaFormulario[]) => void }) {
   const upd = (i: number, cambios: Partial<PreguntaFormulario>) => onChange(value.map((p, j) => (j === i ? { ...p, ...cambios } : p)));
   return (
     <div className="space-y-2">

@@ -108,7 +108,7 @@ export default function Eventos({ socioId }: { socioId: string }) {
                         </div>
                       ))}
                       {e.link && <a href={e.link} target="_blank" rel="noopener noreferrer" className="mt-1 block font-medium underline">Link de acceso</a>}
-                      {Number(e.costo) > 0 && <div className="mt-1 text-xs">El costo de la actividad se carga en tu cuenta para pagar online.</div>}
+                      {Number(e.costo) > 0 && <div className="mt-1 text-xs">Costo {pesos(e.costo)}: lo abonás en la administración o se carga en tu cuenta para pagar online. La factura sale a nombre de tu empresa.</div>}
                     </div>
                   )}
 

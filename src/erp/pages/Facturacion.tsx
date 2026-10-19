@@ -17,7 +17,7 @@ export default function Facturacion() {
   const [tab, setTab] = useState<Tab>("comprobantes");
   return (
     <>
-      <PageHeader title="Facturación electrónica" subtitle="Facturas de cuotas y alquileres emitidas en ARCA a través de n8n" />
+      <PageHeader title="Facturación electrónica" subtitle="Facturas de cuotas, alquileres y capacitaciones emitidas en ARCA a través de n8n" />
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { value: "comprobantes", label: "Comprobantes" },
         { value: "conexion", label: "Conexión ARCA / n8n" },
@@ -100,9 +100,10 @@ function Comprobantes() {
               {Object.entries(ESTADOS_FACTURA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </Select>
             <Select className="w-auto py-1 text-xs" value={origen} onChange={(e) => setOrigen(e.target.value)}>
-              <option value="">Cuotas y alquileres</option>
+              <option value="">Todos los orígenes</option>
               <option value="cuota">Cuotas sociales</option>
               <option value="alquiler">Alquileres</option>
+              <option value="inscripcion">Capacitaciones</option>
             </Select>
             <Button size="sm" variant="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={exportar}>Exportar</Button>
           </div>

@@ -70,7 +70,7 @@ export function FacturasTabla({ facturas, showReceptor = true }: { facturas: Fac
                 <div className="text-xs text-slate-500">{f.receptor_cuit ? `CUIT ${formatCuit(f.receptor_cuit)}` : "Sin CUIT"} · {f.receptor_condicion_iva}</div>
               </td>
             )}
-            <td className="td text-sm">{f.concepto}{f.origen === "alquiler" && <span className="ml-1"><Badge tone="purple">Alquiler</Badge></span>}</td>
+            <td className="td text-sm">{f.concepto}{f.origen === "alquiler" && <span className="ml-1"><Badge tone="purple">Alquiler</Badge></span>}{f.origen === "inscripcion" && <span className="ml-1"><Badge tone="blue">Capacitación</Badge></span>}</td>
             <td className="td text-right tabular-nums">
               {pesos(f.total)}
               {Number(f.iva) > 0 && <div className="text-[11px] text-slate-500">IVA {pesos(f.iva)}</div>}

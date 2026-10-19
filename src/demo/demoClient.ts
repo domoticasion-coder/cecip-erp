@@ -22,6 +22,8 @@ export function lit(v: unknown): string {
   if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
     return v.length ? `array[${v.map(lit).join(", ")}]::text[]` : "'{}'";
   }
+  // Listas de números (columnas int[], ej. días de la semana)
+  if (Array.isArray(v) && v.length && v.every((x) => typeof x === "number")) return `array[${v.map(lit).join(", ")}]::int[]`;
   if (typeof v === "object") return `'${JSON.stringify(v).replace(/'/g, "''")}'`;
   return `'${String(v).replace(/'/g, "''")}'`;
 }
@@ -261,6 +263,12 @@ const RPC_TIPO: Record<string, "scalar" | "row" | "set"> = {
   conciliar_banco: "row",
   evento_publico: "scalar",
   inscribir_publico: "scalar",
+  registrar_pago_docente: "row",
+  anular_pago_docente: "scalar",
+  registrar_pago_inscripcion: "row",
+  anular_pago_inscripcion: "row",
+  cargar_inscripcion_a_cuenta: "row",
+  facturar_inscripcion: "scalar",
 };
 
 export async function rpc(name: string, params: Record<string, unknown> = {}, who?: Identidad): Promise<Result> {

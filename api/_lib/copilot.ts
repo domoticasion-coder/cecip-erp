@@ -94,7 +94,7 @@ export async function llamarGemini(sistema: string, turnos: Turno[], config: Rec
 }
 
 /** Copiloto: arma la conversación y consulta a Gemini. */
-export async function preguntarGemini(contexto: string, historial: Mensaje[], pregunta: string): Promise<string> {
+export async function preguntarGemini(contexto: string, historial: Mensaje[], pregunta: string, instrucciones = INSTRUCCIONES): Promise<string> {
   // Gemini exige que la conversación empiece por el usuario y alterne roles
   const turnos: Turno[] = [];
   for (const m of [...historial.slice(-12), { rol: "usuario" as const, texto: pregunta }]) {
@@ -107,7 +107,8 @@ export async function preguntarGemini(contexto: string, historial: Mensaje[], pr
   }
   while (turnos[0]?.role === "model") turnos.shift();
 
-  return llamarGemini(`${INSTRUCCIONES}\n\n=== CONTEXTO ===\n${contexto}`, turnos, { temperature: 0.3, maxOutputTokens: 900 }, "El Copiloto");
+  const largo = instrucciones === INSTRUCCIONES ? 900 : 2500; // en el ERP se piden redacciones y listados más largos
+  return llamarGemini(`${instrucciones}\n\n=== CONTEXTO ===\n${contexto}`, turnos, { temperature: 0.3, maxOutputTokens: largo }, "El Copiloto");
 }
 
 const INSTRUCCIONES_VARIANTES = (n: number) => `Sos redactor del Centro Comercial e Industrial de Paraná (CeCIP). Reescribís mensajes de WhatsApp que la institución envía a sus socios.

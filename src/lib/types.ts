@@ -237,8 +237,80 @@ export interface Evento {
   slug: string | null;
   formulario_publico: boolean;
   preguntas: PreguntaFormulario[];
+  // Capacitaciones
+  docente_id: string | null;
+  dias_semana: number[];
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  cantidad_clases: number | null;
+  precio_no_socio: number | null;
+  honorario_tipo: HonorarioTipo;
+  honorario_monto: number;
+  facturar: boolean;
+  cancelado: boolean;
   created_at: string;
 }
+
+export type HonorarioTipo = "por_clase" | "por_hora" | "total" | "por_alumno" | "porcentaje";
+export const HONORARIOS: Record<HonorarioTipo, string> = {
+  por_clase: "Por clase",
+  por_hora: "Por hora",
+  total: "Monto total del curso",
+  por_alumno: "Por alumno que pagó",
+  porcentaje: "% de lo recaudado",
+};
+export const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+
+export interface Docente {
+  id: string;
+  nombre: string;
+  cuit: string | null;
+  condicion_iva: CondicionIva | null;
+  email: string | null;
+  telefono: string | null;
+  especialidad: string | null;
+  cbu: string | null;
+  alias: string | null;
+  honorario_sugerido: number | null;
+  activo: boolean;
+  observaciones: string | null;
+  created_at: string;
+}
+
+export interface DocentePago {
+  id: string;
+  docente_id: string;
+  evento_id: string | null;
+  fecha: string;
+  concepto: string;
+  clases: number | null;
+  monto: number;
+  metodo_pago: string | null;
+  cuenta_id: string | null;
+  comprobante: string | null;
+  movimiento_id: string | null;
+  created_at: string;
+}
+
+export interface CapacitacionResumen {
+  id: string;
+  docente_nombre: string | null;
+  inscriptos: number;
+  inscriptos_pagos: number;
+  recaudado: number;
+  a_cobrar: number;
+  pagado_docente: number;
+  honorario_previsto: number;
+}
+
+export type EstadoPagoInscripcion = "pendiente" | "pagada" | "en_cuenta" | "bonificada" | "sin_cargo";
+export const ESTADOS_PAGO_INSCRIPCION: Record<EstadoPagoInscripcion, { label: string; tone: "amber" | "green" | "blue" | "gray" | "purple" }> = {
+  pendiente: { label: "A cobrar", tone: "amber" },
+  pagada: { label: "Pagada", tone: "green" },
+  en_cuenta: { label: "En cuenta del socio", tone: "blue" },
+  bonificada: { label: "Bonificada", tone: "purple" },
+  sin_cargo: { label: "Sin cargo", tone: "gray" },
+};
 
 export interface PreguntaFormulario {
   id: string;
@@ -260,6 +332,15 @@ export interface Inscripcion {
   es_socio: boolean;
   respuestas: Record<string, string>;
   origen: "portal" | "erp" | "publico";
+  razon_social: string | null;
+  condicion_iva: CondicionIva | null;
+  monto: number;
+  estado_pago: EstadoPagoInscripcion;
+  fecha_pago: string | null;
+  metodo_pago: string | null;
+  monto_pagado: number | null;
+  recibo_numero: number | null;
+  cuota_id: string | null;
   asistio: boolean;
   created_at: string;
 }
@@ -282,7 +363,7 @@ export const METODOS_PAGO = ["Efectivo", "Transferencia", "Mercado Pago", "Tarje
 
 export const CATEGORIAS_MOVIMIENTO = {
   ingreso: ["Saldo inicial", "Cuotas sociales","Eventos y capacitaciones", "Alquileres", "Alquiler de salón", "Convenios", "Donaciones", "Otros ingresos"],
-  egreso: ["Sueldos y cargas sociales", "Servicios (luz, agua, internet)", "Alquiler", "Mantenimiento", "Honorarios", "Impuestos y tasas", "Eventos", "Insumos de oficina", "Comisiones bancarias", "Otros egresos"],
+  egreso: ["Sueldos y cargas sociales", "Servicios (luz, agua, internet)", "Alquiler", "Mantenimiento", "Honorarios", "Impuestos y tasas", "Eventos", "Insumos de oficina", "Comisiones bancarias", "Honorarios docentes", "Otros egresos"],
 };
 
 export interface WaCampana {
@@ -390,8 +471,9 @@ export const ESTADOS_FACTURA: Record<EstadoFactura, { label: string; tone: "gray
 
 export interface Factura {
   id: string;
-  origen: "cuota" | "alquiler" | "manual";
+  origen: "cuota" | "alquiler" | "manual" | "inscripcion";
   cuota_id: string | null;
+  inscripcion_id: string | null;
   cargo_id: string | null;
   socio_id: string | null;
   contrato_id: string | null;

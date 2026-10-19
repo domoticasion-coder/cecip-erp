@@ -7,6 +7,7 @@ import { PORTAL_URL } from "../lib/appMode";
 import { lit, rpc, sqlComo, usuarioActual } from "./demoClient";
 import type { Identidad } from "./demoDb";
 import { armarContexto } from "../../shared/copilotContexto";
+import { armarContextoErp } from "../../shared/copilotErp";
 
 const SERVICIO: Identidad = { userId: null, role: "service_role" };
 const SUPER: Identidad = { userId: null, role: "postgres" };
@@ -160,6 +161,7 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
     }
 
     case "copilot": {
+      if (body.ambito === "erp") return { respuesta: await copilotoErp(comoYo, body) };
       const real = await copilotoGemini(comoYo, body);
       if (real) return { respuesta: real };
       return { respuesta: await copilotoDemo(comoYo, String(body.pregunta || "")) };
@@ -200,6 +202,28 @@ async function copilotoGemini(comoYo: Identidad, body: any): Promise<string | nu
     body: JSON.stringify({ contexto, historial: body.historial || [], pregunta: body.pregunta || "" }),
   }).catch(() => null);
   if (!res || res.status === 503 || res.status === 404) return null; // sin clave: respuestas automáticas
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "No se pudo consultar a Gemini.");
+  return json.respuesta;
+}
+
+/** Copiloto del ERP en la demo: mismos datos (función SQL) y la IA real si hay GEMINI_API_KEY en el .env */
+async function copilotoErp(comoYo: Identidad, body: any): Promise<string> {
+  const [st] = await q(comoYo, "select nombre, rol from staff where user_id = auth.uid() and activo");
+  if (!st) throw new Error("Acceso solo para el personal de CeCIP.");
+  const historial: { rol: string; texto: string }[] = Array.isArray(body.historial) ? body.historial : [];
+  const busqueda = [body.pregunta, ...historial.filter((m) => m.rol === "usuario").slice(-2).map((m) => m.texto)].join(" ");
+  const [fila] = await q(SUPER, `select datos_copiloto_erp(${lit(st.rol)}, ${lit(busqueda)}) as d`);
+  const contexto = armarContextoErp(fila.d, st);
+  const res = await fetch("/dev-api/copilot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contexto, historial, pregunta: body.pregunta || "", ambito: "erp" }),
+  }).catch(() => null);
+  if (!res || res.status === 503 || res.status === 404) {
+    return "El Copiloto del ERP necesita la IA (Gemini): cargá **GEMINI_API_KEY** en el archivo .env y reiniciá la demo.\n\n" +
+      `Mientras tanto, un dato del sistema: hay **${fila.d.resumen?.socios_activos ?? "—"} socios activos** y **${fila.d.resumen?.socios_morosos ?? "—"}** con cuotas vencidas.`;
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || "No se pudo consultar a Gemini.");
   return json.respuesta;

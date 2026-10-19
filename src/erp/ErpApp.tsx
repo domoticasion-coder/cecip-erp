@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Users, Receipt, AlertCircle, Wallet, Megaphone, CalendarDays, Sparkles,
-  UserCheck, Settings, LogOut, Menu, X, LayoutTemplate, Send, Building2, FileText,
+  UserCheck, Settings, LogOut, Menu, X, LayoutTemplate, Send, Building2, FileText, GraduationCap, Bot,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -28,6 +28,8 @@ import Contenido from "./pages/Contenido";
 import DifusionComercia from "./pages/DifusionComercia";
 import Alquileres from "./pages/Alquileres";
 import Facturacion from "./pages/Facturacion";
+import Capacitaciones from "./pages/Capacitaciones";
+import Copiloto from "./pages/Copiloto";
 
 interface NavItem {
   to: string;
@@ -35,10 +37,12 @@ interface NavItem {
   icon: typeof Users;
   roles?: Rol[]; // undefined = todo el personal
   badge?: "accesos" | "comercia" | "facturas";
+  ia?: boolean; // se marca como novedad
 }
 
 const NAV: NavItem[] = [
   { to: "/", label: "Inicio", icon: LayoutDashboard },
+  { to: "/copiloto", label: "Copiloto CeCIP", icon: Bot, ia: true },
   { to: "/socios", label: "Socios", icon: Users },
   { to: "/cuotas", label: "Cuotas", icon: Receipt },
   { to: "/cobranzas", label: "Cobranzas y morosos", icon: AlertCircle },
@@ -46,7 +50,8 @@ const NAV: NavItem[] = [
   { to: "/facturacion", label: "Facturación", icon: FileText, roles: ["tesoreria"], badge: "facturas" },
   { to: "/alquileres", label: "Alquileres", icon: Building2, roles: ["tesoreria"] },
   { to: "/comunicacion", label: "Comunicación", icon: Megaphone },
-  { to: "/eventos", label: "Eventos y capacitaciones", icon: CalendarDays },
+  { to: "/eventos", label: "Eventos", icon: CalendarDays },
+  { to: "/capacitaciones", label: "Capacitaciones", icon: GraduationCap },
   { to: "/comercia", label: "ComercIA", icon: Sparkles, badge: "comercia" },
   { to: "/contenido", label: "Contenido del portal", icon: LayoutTemplate, roles: ["atencion"] },
   { to: "/difusion", label: "Difusión ComercIA", icon: Send, roles: ["comercia"] },
@@ -112,9 +117,10 @@ function Shell() {
 
   const esComercia = staff?.rol === "comercia";
   const items = esComercia
-    ? NAV.filter((n) => ["/comercia", "/contenido", "/difusion"].includes(n.to)).map((n) => (n.to === "/contenido" ? { ...n, label: "Contenido ComercIA" } : n))
+    ? NAV.filter((n) => ["/copiloto", "/comercia", "/contenido", "/difusion"].includes(n.to)).map((n) => (n.to === "/contenido" ? { ...n, label: "Contenido ComercIA" } : n))
     : NAV.filter((n) => !n.roles || can(...n.roles));
   const isPrint = location.pathname.startsWith("/recibo/");
+  const esChat = location.pathname === "/copiloto";
 
   if (isPrint) {
     return (
@@ -152,6 +158,7 @@ function Shell() {
               <n.icon className="h-4 w-4 shrink-0" />
               <span className="flex-1">{n.label}</span>
               {!!count && <span className="rounded-full bg-amber-400 px-1.5 text-xs font-bold text-amber-950">{count}</span>}
+              {n.ia && <span className="rounded bg-amber-400 px-1 text-[10px] font-bold text-amber-950">IA</span>}
             </NavLink>
           );
         })}
@@ -183,23 +190,25 @@ function Shell() {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-60">
+      <div className={cx("flex min-w-0 flex-1 flex-col lg:pl-60", esChat && "h-[100dvh]")}>
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
           <button onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></button>
           <span className="font-semibold">CeCIP · ERP</span>
         </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6">
+        <main className={esChat ? "flex min-h-0 w-full flex-1" : "mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6"}>
           {esComercia ? (
             // Equipo de ComercIA (externo): solo sus secciones
             <Routes>
               <Route path="/comercia" element={<Comercia />} />
               <Route path="/contenido" element={<Contenido />} />
               <Route path="/difusion" element={<DifusionComercia />} />
+              <Route path="/copiloto" element={<Copiloto />} />
               <Route path="*" element={<Navigate to="/comercia" replace />} />
             </Routes>
           ) : (
             <Routes>
               <Route path="/" element={<Inicio />} />
+              <Route path="/copiloto" element={<Copiloto />} />
               <Route path="/socios" element={<Socios />} />
               <Route path="/socios/:id" element={<SocioDetalle />} />
               <Route path="/cuotas" element={<Cuotas />} />
@@ -209,6 +218,7 @@ function Shell() {
               {can("tesoreria") && <Route path="/alquileres" element={<Alquileres />} />}
               <Route path="/comunicacion" element={<Comunicacion />} />
               <Route path="/eventos" element={<Eventos />} />
+              <Route path="/capacitaciones" element={<Capacitaciones />} />
               <Route path="/comercia" element={<Comercia />} />
               {can("atencion") && <Route path="/contenido" element={<Contenido />} />}
               {can("comercia") && <Route path="/difusion" element={<DifusionComercia />} />}

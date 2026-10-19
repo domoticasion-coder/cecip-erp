@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, CalendarPlus, CheckCircle2, MapPin, Monitor, Ticket, Users } from "lucide-react";
+import { CalendarDays, CalendarPlus, CheckCircle2, MapPin, Monitor, Ticket, Users, Clock, GraduationCap } from "lucide-react";
 import { supabase, traducirError } from "../../lib/supabase";
 import { appUrl } from "../../lib/appMode";
 import { pesos } from "../../lib/format";
-import type { PreguntaFormulario } from "../../lib/types";
+import { CONDICIONES_IVA, DIAS_SEMANA, type CondicionIva, type PreguntaFormulario } from "../../lib/types";
 import { Button, ErrorBox, Field, Input, Loading, Select, Textarea } from "../../components/ui";
 import { ThemeToggle } from "../../lib/theme";
 
@@ -18,6 +18,13 @@ interface EventoPublico {
   lugar: string | null;
   modalidad: "presencial" | "virtual" | "mixta";
   costo: number;
+  precio_no_socio: number;
+  dias_semana: number[] | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  cantidad_clases: number | null;
+  docente: string | null;
+  pide_facturacion: boolean;
   cupo: number | null;
   cupo_disponible: number | null;
   imagen_url: string | null;
@@ -45,7 +52,7 @@ function linkCalendario(e: EventoPublico) {
  */
 export default function InscripcionPublica() {
   const { slug = "" } = useParams();
-  const [f, setF] = useState({ nombre: "", email: "", telefono: "", empresa: "", cuit: "", web: "" });
+  const [f, setF] = useState({ nombre: "", email: "", telefono: "", empresa: "", cuit: "", razon_social: "", condicion_iva: "", web: "" });
   const [resp, setResp] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -68,6 +75,7 @@ export default function InscripcionPublica() {
     const { data, error } = await supabase.rpc("inscribir_publico", {
       p_slug: slug, p_nombre: f.nombre, p_email: f.email, p_telefono: f.telefono || null,
       p_empresa: f.empresa || null, p_cuit: f.cuit || null, p_respuestas: resp,
+      p_razon_social: f.razon_social || null, p_condicion_iva: (f.condicion_iva || null) as CondicionIva | null,
     });
     setEnviando(false);
     if (error) return setError(traducirError(error.message));
@@ -112,7 +120,20 @@ export default function InscripcionPublica() {
                   {ev.modalidad === "virtual" ? <Monitor className="h-4 w-4 text-brand-600" /> : <MapPin className="h-4 w-4 text-brand-600" />}
                   {ev.modalidad === "virtual" ? "Virtual (te enviamos el link por email)" : ev.lugar || "A confirmar"}{ev.modalidad === "mixta" && " · también virtual"}
                 </li>
-                <li className="flex items-center gap-2"><Ticket className="h-4 w-4 text-brand-600" />{Number(ev.costo) > 0 ? pesos(ev.costo) : "Sin costo"}</li>
+                {ev.cantidad_clases && ev.cantidad_clases > 1 && (
+                  <li className="flex items-center gap-2"><Clock className="h-4 w-4 text-brand-600" />
+                    {ev.cantidad_clases} clases{ev.dias_semana?.length ? ` · ${[...ev.dias_semana].sort().map((d) => DIAS_SEMANA[d - 1]).join(", ")}` : ""}
+                    {ev.hora_inicio && ` de ${ev.hora_inicio.slice(0, 5)} a ${(ev.hora_fin || "").slice(0, 5)} hs`}
+                  </li>
+                )}
+                {ev.docente && <li className="flex items-center gap-2"><GraduationCap className="h-4 w-4 text-brand-600" />Docente: {ev.docente}</li>}
+                <li className="flex items-center gap-2"><Ticket className="h-4 w-4 text-brand-600" />
+                  {Number(ev.precio_no_socio) > 0 || Number(ev.costo) > 0
+                    ? Number(ev.precio_no_socio) !== Number(ev.costo)
+                      ? <>{pesos(ev.precio_no_socio)} · socios del CeCIP {Number(ev.costo) > 0 ? pesos(ev.costo) : "sin cargo"}</>
+                      : pesos(ev.costo)
+                    : "Sin costo"}
+                </li>
                 {ev.cupo_disponible !== null && (
                   <li className="flex items-center gap-2"><Users className="h-4 w-4 text-brand-600" />{ev.cupo_disponible > 0 ? `Quedan ${ev.cupo_disponible} lugares` : "Cupo completo"}</li>
                 )}
@@ -145,7 +166,27 @@ export default function InscripcionPublica() {
                       <Field label="Email *"><Input required type="email" value={f.email} onChange={set("email")} autoComplete="email" /></Field>
                       <Field label="WhatsApp / teléfono"><Input value={f.telefono} onChange={set("telefono")} autoComplete="tel" /></Field>
                       <Field label="Empresa o comercio"><Input value={f.empresa} onChange={set("empresa")} autoComplete="organization" /></Field>
-                      <Field label="CUIT (opcional)" hint="Si tu empresa es socia del CeCIP, la reconocemos."><Input value={f.cuit} onChange={set("cuit")} /></Field>
+                      {ev.pide_facturacion ? (
+                        <div className="rounded-lg border border-slate-200 p-3 sm:col-span-2">
+                          <div className="mb-2 text-sm font-semibold">Datos para la factura</div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="CUIT / CUIL *" hint="Si tu empresa es socia del CeCIP, se aplica el precio de socio.">
+                              <Input required inputMode="numeric" value={f.cuit} onChange={set("cuit")} placeholder="20-12345678-9" />
+                            </Field>
+                            <Field label="Condición frente al IVA">
+                              <Select value={f.condicion_iva} onChange={set("condicion_iva")}>
+                                <option value="">Elegí</option>
+                                {CONDICIONES_IVA.map((c) => <option key={c} value={c}>{c === "RI" ? "Responsable Inscripto" : c}</option>)}
+                              </Select>
+                            </Field>
+                            <Field label="Razón social / nombre para la factura" className="sm:col-span-2">
+                              <Input value={f.razon_social} onChange={set("razon_social")} placeholder="Si es distinto de tu nombre" />
+                            </Field>
+                          </div>
+                        </div>
+                      ) : (
+                        <Field label="CUIT (opcional)" hint="Si tu empresa es socia del CeCIP, la reconocemos."><Input value={f.cuit} onChange={set("cuit")} /></Field>
+                      )}
                       {ev.preguntas.map((p) => (
                         <Field key={p.id} label={p.etiqueta + (p.requerida ? " *" : "")} className="sm:col-span-2">
                           {p.tipo === "opciones" ? (

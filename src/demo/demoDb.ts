@@ -8,6 +8,8 @@ import esquema from "../../supabase/migrations/001_esquema.sql?raw";
 import padron from "../../supabase/migrations/002_padron_inicial.sql?raw";
 import cambios005 from "../../supabase/migrations/005_cobros_alquileres_facturacion.sql?raw";
 import padron2026 from "../../supabase/migrations/006_padron_2026.sql?raw";
+import capacitaciones008 from "../../supabase/migrations/008_capacitaciones.sql?raw";
+import copiloto009 from "../../supabase/migrations/009_copiloto_erp.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
@@ -212,9 +214,57 @@ from eventos, (values
 where titulo = 'Liquidación de sueldos para comercios';
 `;
 
+// Docentes, cursada, inscripciones con facturación y pagos a docentes (migración 008)
+const SEED_008 = `
+insert into docentes (nombre, cuit, condicion_iva, email, telefono, especialidad, alias, honorario_sugerido) values
+  ('Laura Méndez', '27-22333444-5', 'Monotributo', 'laura.mendez@docente.demo', '343 455-9001', 'Liquidación de sueldos y laboral', 'LAURA.MENDEZ.MP', 25000),
+  ('Martín Sosa', '20-28999111-3', 'Monotributo', 'martin.sosa@docente.demo', '343 455-9002', 'Marketing digital y redes', 'MSOSA.DIGITAL', 22000),
+  ('Gabriela Ruiz', '27-30555666-1', 'RI', 'gabriela.ruiz@docente.demo', '343 455-9003', 'Impuestos y facturación', null, 30000);
+
+update eventos set docente_id = (select id from docentes where nombre = 'Laura Méndez'), dias_semana = '{2,4}', hora_inicio = '18:00', hora_fin = '20:00',
+  cantidad_clases = 8, precio_no_socio = 25000, honorario_tipo = 'por_clase', honorario_monto = 25000,
+  fecha_fin = fecha_inicio + interval '25 days'
+where titulo = 'Liquidación de sueldos para comercios';
+update eventos set docente_id = (select id from docentes where nombre = 'Martín Sosa'), dias_semana = '{3}', hora_inicio = '19:00', hora_fin = '21:00',
+  cantidad_clases = 4, costo = 0, precio_no_socio = 12000, honorario_tipo = 'total', honorario_monto = 90000, formulario_publico = true,
+  fecha_fin = fecha_inicio + interval '21 days'
+where titulo = 'Ventas por redes sociales';
+update eventos set docente_id = (select id from docentes where nombre = 'Gabriela Ruiz'), cantidad_clases = 1, hora_inicio = '18:00', hora_fin = '20:00',
+  honorario_tipo = 'total', honorario_monto = 60000
+where titulo = 'Charla: Facturación electrónica';
+
+-- Inscripciones: precio según socio / no socio y algunos cobros
+update inscripciones i set monto = case when i.socio_id is not null then e.costo else coalesce(e.precio_no_socio, e.costo) end,
+  estado_pago = case when (case when i.socio_id is not null then e.costo else coalesce(e.precio_no_socio, e.costo) end) > 0 then 'pendiente' else 'sin_cargo' end
+from eventos e where e.id = i.evento_id and e.tipo = 'capacitacion';
+update inscripciones set cuit = '27-30111222-4', razon_social = 'BENÍTEZ LUCÍA', condicion_iva = 'Monotributo' where asistente_email = 'lucia.benitez@mail.demo';
+update inscripciones set cuit = '20-25444333-9', razon_social = 'PANADERÍA SAN MARTÍN SRL', condicion_iva = 'RI' where asistente_email = 'martin@panaderia.demo';
+
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+select registrar_pago_inscripcion(i.id, 'Transferencia', null, current_date - 1)
+from inscripciones i join eventos e on e.id = i.evento_id
+where e.titulo = 'Liquidación de sueldos para comercios' and i.estado_pago = 'pendiente'
+  and (i.origen = 'publico' and i.asistente_email <> 'caro.diaz@mail.demo' or abs(hashtext(i.id::text)) % 3 = 0);
+-- Las facturas de estos cobros quedan emitidas (en producción las emite n8n en ARCA)
+update facturas f set estado = 'emitida', punto_venta = 3, numero = 2000 + x.n, cae = '7' || lpad(((2000 + x.n) * 7919)::text, 13, '0'),
+  cae_vencimiento = f.fecha + 10, enviada_at = now(), emitida_at = now()
+from (select id, row_number() over (order by created_at, id) as n from facturas where origen = 'inscripcion') x where x.id = f.id;
+
+-- Pagos a docentes
+select set_config('request.jwt.claim.sub', '${U.admin.id}', false);
+select set_config('request.jwt.claims', '{"role":"authenticated"}', false);
+select registrar_pago_docente((select id from docentes where nombre = 'Gabriela Ruiz'), (select id from eventos where titulo = 'Charla: Facturación electrónica'),
+  60000, 'Honorarios charla Facturación electrónica', 1, current_date - 14, 'Transferencia', null, 'Factura A 0002-00000415');
+select registrar_pago_docente((select id from docentes where nombre = 'Laura Méndez'), null, 40000, 'Taller de liquidación (curso anterior)', 2,
+  current_date - 60, 'Transferencia', null, 'Factura C 0001-00000087');
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claims', '', false);
+`;
+
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v10";
+const IDB_NAME = "cecip-demo-v13";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -233,6 +283,9 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(padron2026);
         await db.exec(SEED);
         await db.exec(SEED_005);
+        await db.exec(capacitaciones008);
+        await db.exec(SEED_008);
+        await db.exec(copiloto009);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;
