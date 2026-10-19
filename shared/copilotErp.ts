@@ -4,39 +4,87 @@
  * La usan la API real y el modo demo.
  */
 import { catalogoComerciaTexto } from "./comercia.js";
-import { ROLES as NOMBRES_ROLES } from "./roles.js";
+import { ROLES as NOMBRES_ROLES, ROLES_INFO, veSeccion, type Rol, type Seccion } from "./roles.js";
 
 const pesos = (n: unknown) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" }).format(Number(n || 0));
 const fechaAR = (d: unknown) => (d ? new Date(String(d).length === 10 ? d + "T12:00:00" : String(d)).toLocaleDateString("es-AR") : "—");
 const DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
 const ROLES: Record<string, string> = NOMBRES_ROLES;
 
-/** Mapa del ERP para responder "¿cómo hago...?" */
-const GUIA_ERP = `GUÍA DEL ERP (dónde se hace cada cosa):
-- Inicio: resumen y avisos (deuda vencida, facturas con error, alquileres vencidos, banco sin conciliar).
-- Socios: padrón con filtros (categoría, forma de pago, seguimiento), ficha con cuenta corriente, facturación, historial de contacto y acceso al portal. "Nuevo socio", "Importar" (Excel/CSV), selección múltiple para asignar categoría o forma de pago.
-- Cuotas: "Generar cuotas del mes" (a cada socio le genera el período de su forma de pago: mensual, bimestral, trimestral, semestral o anual, sin duplicar), cobrar, link de pago de Mercado Pago, recordatorios por email, recibos.
-- Cobranzas y morosos: lista de deudores y envío masivo de recordatorios.
-- Tesorería y banco: movimientos de caja y bancos; pestaña "Banco Santander" para sincronizar, importar el extracto y conciliar (imputar a cuotas o alquileres).
-- Facturación: comprobantes emitidos en ARCA vía n8n, cola y errores (reintentar); pestaña "Conexión ARCA / n8n".
-- Alquileres: cobros (mensuales y de reservas), pestaña "Salones y reservas" para alquileres temporales por día u horas (con seña, calendario y control de superposición) y "Inmuebles y contratos" para contratos mensuales y ajustes (ICL, IPC, porcentaje).
-- Comunicación: comunicados del portal (con imagen), email masivo, campañas de WhatsApp con mensajes variados y espera entre envíos, historial.
-- Eventos: charlas y actividades, formulario público para no socios.
-- Capacitaciones: cursos (docente, días, horario, clases, precios socio/no socio, honorarios), inscriptos con datos de facturación, cobro y factura, pestañas Docentes y Pagos a docentes.
-- ComercIA, Contenido del portal, Difusión ComercIA: convenio CeCIP + IEC + FactorIA.
-- Accesos al portal: aprobar o rechazar socios que se registran.
-- Configuración (solo Administrador): valores de cuota por categoría y descuentos por forma de pago, interés por mora, datos de la institución, cuentas y personal.`;
+/** Mapa del ERP para responder "¿cómo hago...?": cada línea se muestra solo a quien ve esas secciones */
+const GUIA_ERP: [Seccion[], string][] = [
+  [["/"], "Inicio: resumen y avisos (deuda vencida, facturas con error, alquileres vencidos, banco sin conciliar)."],
+  [["/socios"], "Socios: padrón con filtros (categoría, forma de pago, seguimiento), ficha con cuenta corriente, facturación, historial de contacto y acceso al portal. \"Nuevo socio\", \"Importar\" (Excel/CSV), selección múltiple para asignar categoría o forma de pago."],
+  [["/cuotas"], "Cuotas: \"Generar cuotas del mes\" (a cada socio le genera el período de su forma de pago: mensual, bimestral, trimestral, semestral o anual, sin duplicar), cobrar, link de pago de Mercado Pago, recordatorios por email, recibos."],
+  [["/cobranzas"], "Cobranzas y morosos: lista de deudores y envío masivo de recordatorios."],
+  [["/tesoreria"], "Tesorería y banco: movimientos de caja y bancos; pestaña \"Banco Santander\" para sincronizar, importar el extracto y conciliar (imputar a cuotas o alquileres)."],
+  [["/facturacion"], "Facturación: comprobantes emitidos en ARCA vía n8n, cola y errores (reintentar); pestaña \"Conexión ARCA / n8n\"."],
+  [["/alquileres"], "Alquileres: cobros (mensuales y de reservas), pestaña \"Salones y reservas\" para alquileres temporales por día u horas (con seña, calendario y control de superposición) y \"Inmuebles y contratos\" para contratos mensuales y ajustes (ICL, IPC, porcentaje)."],
+  [["/comunicacion"], "Comunicación: comunicados del portal (con imagen), email individual, email masivo (con cola de envío por cupo diario), campañas de WhatsApp con mensajes variados y espera entre envíos, historial."],
+  [["/eventos"], "Eventos: charlas y actividades, formulario público para no socios."],
+  [["/capacitaciones"], "Capacitaciones: cursos (docente, días, horario, clases, precios socio/no socio, honorarios), inscriptos con datos de facturación, cobro y factura, pestañas Docentes y Pagos a docentes."],
+  [["/comercia", "/contenido", "/difusion"], "ComercIA, Contenido del portal, Difusión ComercIA: convenio CeCIP + IEC + FactorIA."],
+  [["/accesos"], "Accesos al portal: aprobar o rechazar socios que se registran."],
+  [["/configuracion"], "Configuración: valores de cuota por categoría y descuentos por forma de pago, interés por mora, datos de la institución, cuentas y personal."],
+];
 
-export function armarContextoErp(d: any, quien: { nombre: string; rol: string }): string {
+const NOMBRE_SECCION: Record<Seccion, string> = {
+  "/": "Inicio", "/copiloto": "Copiloto", "/socios": "Socios", "/cuotas": "Cuotas", "/cobranzas": "Cobranzas y morosos",
+  "/tesoreria": "Tesorería y banco", "/facturacion": "Facturación", "/alquileres": "Alquileres", "/comunicacion": "Comunicación",
+  "/eventos": "Eventos", "/capacitaciones": "Capacitaciones", "/comercia": "ComercIA", "/contenido": "Contenido del portal",
+  "/difusion": "Difusión ComercIA", "/accesos": "Accesos al portal", "/configuracion": "Configuración",
+};
+
+/** Qué secciones del ERP habilitan cada bloque de datos del contexto (los que no figuran los reciben todos) */
+const DATOS_POR_SECCION: Record<string, Seccion[]> = {
+  resumen: ["/cuotas"], cfg: ["/cuotas"], categorias: ["/cuotas"], periodicidades: ["/cuotas"], cuotas_mes: ["/cuotas"],
+  socios_por_estado: ["/socios"], socios_por_pago: ["/socios"], seguimiento: ["/socios"], socios_mencionados: ["/socios"],
+  morosos: ["/cobranzas"],
+  eventos: ["/eventos", "/capacitaciones"], docentes: ["/capacitaciones"], pagos_docentes: ["/capacitaciones"],
+  alquileres: ["/alquileres"], reservas: ["/alquileres"], facturas: ["/facturacion"], tesoreria: ["/tesoreria"],
+  comunicados: ["/comunicacion"], accesos_pendientes: ["/accesos"], personal: ["/configuracion"],
+  solicitudes_comercia: ["/comercia"], ofertas: ["/comercia"], servicios: ["/comercia"], cursos_iec: ["/comercia"],
+  promociones: ["/comercia"], convenio: ["/comercia"], novedades: ["/comercia"],
+};
+
+/** Deja en los datos solo lo que corresponde a las secciones del rol */
+function filtrarPorRol(d: any, rol: Rol): any {
+  const out: any = {};
+  for (const [k, v] of Object.entries(d || {})) {
+    const secs = DATOS_POR_SECCION[k];
+    if (!secs || secs.some((x) => veSeccion(rol, x))) out[k] = v;
+  }
+  // Quien ve socios pero no cuotas (Prensa y capacitación) recibe la ficha sin deuda ni pagos
+  if (out.socios_mencionados && !veSeccion(rol, "/cuotas")) {
+    out.socios_mencionados = out.socios_mencionados.map((s: any) => ({
+      ...s, deuda: undefined, pendientes: undefined, ultimo_pago: undefined, cuota_periodo: undefined, sin_finanzas: true,
+    }));
+  }
+  if (!ROLES_INFO[rol]?.finanzas) {
+    if (out.eventos) out.eventos = out.eventos.map((e: any) => ({ ...e, honorario_previsto: null, pagado_docente: null }));
+    delete out.pagos_docentes;
+  }
+  return out;
+}
+
+export function armarContextoErp(datos: any, quien: { nombre: string; rol: string }): string {
+  // Un rol desconocido recibe lo mínimo (como Comisión directiva)
+  const rol = (quien.rol in ROLES_INFO ? quien.rol : "comision") as Rol;
+  const d = filtrarPorRol(datos, rol);
+  const secciones = ROLES_INFO[rol].secciones.filter((x) => x !== "/copiloto");
   const p: string[] = [
     `FECHA DE HOY: ${new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`,
-    `QUIEN CONSULTA: ${quien.nombre}, rol ${ROLES[quien.rol] || quien.rol}.`,
+    `QUIEN CONSULTA: ${quien.nombre}, rol ${ROLES[rol] || rol}. ${ROLES_INFO[rol].descripcion}`,
+    `SECCIONES DEL ERP DE SU ROL: ${secciones.map((x) => NOMBRE_SECCION[x]).join(", ")}. ` +
+      `${ROLES_INFO[rol].permisos.length ? "" : "Su rol es de solo consulta: no puede modificar datos. "}` +
+      "Cualquier otra área del ERP NO corresponde a su rol.",
   ];
 
   if (d.conocimiento?.length) {
     p.push("CONOCIMIENTO INSTITUCIONAL DEL CECIP:\n" + d.conocimiento.map((k: any) => `${String(k.titulo).toUpperCase()}\n${String(k.contenido).trim()}`).join("\n\n"));
   }
-  if (quien.rol !== "comercia") p.push(GUIA_ERP);
+  const guia = GUIA_ERP.filter(([secs]) => secs.some((x) => veSeccion(rol, x))).map(([, t]) => `- ${t}`);
+  if (guia.length) p.push("GUÍA DEL ERP (solo las secciones de su rol):\n" + guia.join("\n"));
 
   const c = d.cfg;
   if (c && d.resumen) {
@@ -74,10 +122,10 @@ export function armarContextoErp(d: any, quien: { nombre: string; rol: string })
       `- ${s.razon_social}${s.nombre_comercial ? ` ("${s.nombre_comercial}")` : ""}, N° ${s.numero_socio ?? "—"}, CUIT ${s.cuit || "—"} (${s.condicion_iva || "IVA sin dato"}), rubro ${s.rubro || "—"}, estado ${s.estado}` +
       `${s.seguimiento ? ` [${s.seguimiento}]` : ""}, categoría ${s.categoria_nombre || "sin categoría"}, paga ${s.periodicidad_nombre || "—"}${s.cuota_periodo ? ` (${pesos(s.cuota_periodo)} por período)` : ""}, socio desde ${fechaAR(s.fecha_alta)}. ` +
       `Contacto: ${[s.contacto_nombre, s.telefono, s.email].filter(Boolean).join(" · ") || "sin datos"}. Dirección: ${s.direccion || "—"}. ` +
-      `Deuda ${pesos(s.deuda)}${(s.pendientes || []).length ? ": " + s.pendientes.map((c: any) => `${c.concepto} ${pesos(c.total)} vence ${fechaAR(c.vence)}${c.situacion === "vencida" ? " (vencida)" : ""}`).join("; ") : " (al día)"}. ` +
-      `${s.ultimo_pago ? `Último pago: ${s.ultimo_pago.concepto} el ${fechaAR(s.ultimo_pago.fecha)} por ${pesos(s.ultimo_pago.monto)} (${s.ultimo_pago.metodo}).` : "Sin pagos registrados en el sistema."}` +
+      (s.sin_finanzas ? "" : `Deuda ${pesos(s.deuda)}${(s.pendientes || []).length ? ": " + s.pendientes.map((c: any) => `${c.concepto} ${pesos(c.total)} vence ${fechaAR(c.vence)}${c.situacion === "vencida" ? " (vencida)" : ""}`).join("; ") : " (al día)"}. ` +
+      `${s.ultimo_pago ? `Último pago: ${s.ultimo_pago.concepto} el ${fechaAR(s.ultimo_pago.fecha)} por ${pesos(s.ultimo_pago.monto)} (${s.ultimo_pago.metodo}).` : "Sin pagos registrados en el sistema."}`) +
       `${s.observaciones ? ` Observaciones: ${String(s.observaciones).slice(0, 300)}` : ""}`).join("\n"));
-  } else if (d.resumen) {
+  } else if (d.socios_por_estado) {
     p.push("Si preguntan por un socio puntual que no aparece en este contexto, pedí que escriban su razón social, nombre de fantasía o N° de socio (o que lo busquen en Socios).");
   }
   if (d.eventos?.length) {
@@ -127,17 +175,20 @@ export function armarContextoErp(d: any, quien: { nombre: string; rol: string })
     p.push("ÚLTIMAS CONSULTAS DE SOCIOS A COMERCIA:\n" + d.solicitudes_comercia.map((x: any) =>
       `- ${fechaAR(x.fecha)} ${x.socio_nombre || "socio"}: ${x.servicio} [${x.estado}]${x.presupuesto_estimado ? ` ~${pesos(x.presupuesto_estimado)}` : ""}`).join("\n"));
   }
-  p.push(catalogoComerciaTexto(d.ofertas || [], d.servicios || [], d.cursos_iec || [], c?.comercia_url_adhesion, d.promociones || [], d.convenio || [], d.novedades || []));
+  if (veSeccion(rol, "/comercia")) {
+    p.push(catalogoComerciaTexto(d.ofertas || [], d.servicios || [], d.cursos_iec || [], datos?.cfg?.comercia_url_adhesion, d.promociones || [], d.convenio || [], d.novedades || []));
+  }
   return p.join("\n\n");
 }
 
-export const INSTRUCCIONES_ERP = `Sos el Copiloto CeCIP del ERP administrativo del Centro Comercial e Industrial de Paraná: el asistente con IA del personal (administración, tesorería, atención al socio y el equipo de ComercIA).
-Ayudás con cualquier consulta de trabajo: datos de socios, deudas y cobranza, cuotas y formas de pago, tesorería, facturación, alquileres, eventos, capacitaciones y docentes, ComercIA, cómo hacer algo en el sistema, y también tareas generales (redactar emails, mensajes de WhatsApp o comunicados, resumir, calcular, ordenar ideas, explicar normativa general).
+export const INSTRUCCIONES_ERP = `Sos el Copiloto CeCIP del ERP administrativo del Centro Comercial e Industrial de Paraná: el asistente con IA del personal.
+Cada persona tiene un rol (ver QUIEN CONSULTA y SECCIONES DEL ERP DE SU ROL) y vos sos el asistente de ESE rol: ayudás solo con el trabajo de sus secciones (sus datos y cómo hacer algo en ellas) y con tareas generales relacionadas con ese trabajo (redactar emails, mensajes de WhatsApp o comunicados, resumir, calcular, ordenar ideas).
 
 REGLAS
 1. Para datos del CeCIP (socios, montos, fechas, personas, saldos) usá SOLO el CONTEXTO. Si un dato no está, decilo y sugerí dónde verlo en el ERP. Nunca inventes cifras, nombres, CUIT ni teléfonos.
 2. Para temas generales podés usar tu conocimiento, aclarando cuando algo conviene confirmarlo con el contador o un profesional (impuestos, ARCA, leyes laborales).
 3. El contexto ya está filtrado según el rol de quien pregunta: no supongas datos que no figuran.
-4. Para "¿cómo hago...?" indicá el camino exacto en el ERP (sección → pestaña → botón), según la GUÍA DEL ERP.
+   Si preguntan por un área o un dato que no es de su rol (por ejemplo tesorería, deudas o facturación para alguien de Prensa y capacitación), NO respondas ni estimes nada: decí amablemente que esa información no está disponible para su rol y que la consulte con Administración. Tampoco expliques cómo se hace algo en secciones que no son de su rol.
+4. Para "¿cómo hago...?" indicá el camino exacto en el ERP (sección → pestaña → botón), según la GUÍA DEL ERP. Si su rol es de solo consulta, aclaralo cuando pregunten cómo modificar algo.
 5. Si piden redactar un mensaje para socios, usá un tono cordial y profesional (trato de "vos") y, si es para WhatsApp, breve. Podés usar variables como {{nombre}} o {{deuda}} si es para una campaña.
 6. Español rioplatense, claro y directo. Usá listas con "- " y **negritas** puntuales; cuando compares varios ítems podés usar una lista numerada. Sin tablas.`;
