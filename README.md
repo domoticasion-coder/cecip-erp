@@ -34,6 +34,8 @@ Un solo proyecto que sirve dos aplicaciones según el subdominio:
 
 **Facturación electrónica (ARCA vía n8n):** cada cobro de cuota o alquiler puede facturarse automáticamente. El ERP arma la factura (A, B o C según la condición frente al IVA del CeCIP y del socio) y la envía a un webhook de **n8n**, que la emite en ARCA (WSFE) y devuelve CAE, número y PDF. Cada socio tiene su pestaña **Facturación** con sus comprobantes y los cobros sin facturar; el socio ve sus facturas en el portal. Si ARCA rechaza una, queda marcada para reintentar.
 
+**Alquiler temporal de salones:** además de los contratos mensuales, cualquier inmueble (sobre todo los salones) se puede alquilar por día u horas desde *Alquileres → Salones y reservas*: calendario del mes, reserva a nombre de un socio o de un particular (con CUIT para la factura), motivo y cantidad de personas, precio sugerido según la tarifa por hora o por día del salón (con descuento para socios), seña opcional y saldo que vence el día del alquiler. El sistema no deja superponer reservas ni reservar un inmueble alquilado por mes. Los cobros usan el mismo circuito de recibo, factura ARCA y conciliación bancaria; la reserva se puede confirmar por WhatsApp o cancelar (se anula lo pendiente y lo cobrado queda registrado).
+
 **Alquileres:** los tres inmuebles del CeCIP con su contrato (inquilino, monto, vencimiento, depósito y ajuste por ICL, IPC, Casa Propia o porcentaje con aviso de la fecha de ajuste), generación mensual de los alquileres, cobro con recibo e ingreso en tesorería, recordatorio por WhatsApp con los datos para transferir, cargos extra (expensas, servicios) y facturación.
 
 **Comunicación**
@@ -91,6 +93,7 @@ Los permisos se controlan **en la base de datos**: aunque alguien conozca la API
    5. `supabase/migrations/007_valores_cuotas.sql`: valores de cuota por categoría (antes del 006).
    6. `supabase/migrations/008_capacitaciones.sql`: capacitaciones, docentes, pagos a docentes y facturación de inscripciones.
    7. `supabase/migrations/009_copiloto_erp.sql`: Copiloto CeCIP del ERP (datos de gestión según el rol).
+   8. `supabase/migrations/010_alquiler_salones.sql`: alquiler temporal de salones (reservas por día u horas).
    - `004_usuarios_prueba.sql` es opcional (usuarios de prueba). Si ya ejecutaste 001 a 004, solo te falta correr 005 y 006.
 3. Creá tu usuario administrador:
    1. En **Authentication → Users → Add user**, cargá tu email y contraseña y marcá "Auto Confirm User".

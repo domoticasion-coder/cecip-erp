@@ -109,7 +109,19 @@ begin
                k.proximo_ajuste, coalesce(k.inquilino_telefono, k.inquilino_email) as contacto,
                (select coalesce(sum(c.monto), 0) from alquiler_cargos c where c.contrato_id = k.id and c.estado = 'pendiente') as adeudado,
                (select count(*) from alquiler_cargos c where c.contrato_id = k.id and c.estado = 'pendiente' and c.vencimiento < current_date) as vencidos
-        from inmuebles i left join alquiler_contratos k on k.inmueble_id = i.id and k.estado = 'vigente' order by i.orden) x) end,
+        from inmuebles i left join alquiler_contratos k on k.inmueble_id = i.id and k.estado = 'vigente'
+          and coalesce(to_jsonb(k) ->> 'modalidad', 'mensual') = 'mensual'
+        order by i.orden) x) end,
+    -- Reservas temporales de salones (to_jsonb: funciona aunque todavía no se haya ejecutado la 010)
+    'reservas', case when v_interno then (select coalesce(json_agg(x), '[]') from (
+        select i.nombre as inmueble, k.inquilino_nombre as cliente, k.fecha_inicio as desde, k.fecha_fin as hasta,
+               to_jsonb(k) ->> 'hora_inicio' as hora_inicio, to_jsonb(k) ->> 'hora_fin' as hora_fin, to_jsonb(k) ->> 'motivo' as motivo,
+               to_jsonb(k) ->> 'personas' as personas, k.monto_mensual as precio, coalesce(k.inquilino_telefono, k.inquilino_email) as contacto,
+               (select coalesce(sum(c.monto), 0) from alquiler_cargos c where c.contrato_id = k.id and c.estado = 'pendiente') as pendiente
+        from alquiler_contratos k join inmuebles i on i.id = k.inmueble_id
+        where to_jsonb(k) ->> 'modalidad' = 'temporal' and k.estado = 'vigente'
+          and coalesce(k.fecha_fin, k.fecha_inicio) >= current_date - 7
+        order by k.fecha_inicio limit 30) x) end,
     'facturas', case when v_interno then (select json_build_object(
         'por_estado', (select json_object_agg(estado, n) from (select estado, count(*) n from facturas group by estado) x),
         'emitidas_mes', (select coalesce(sum(total), 0) from facturas where estado = 'emitida' and fecha >= v_mes),

@@ -398,7 +398,15 @@ export interface Inmueble {
   descripcion: string | null;
   activo: boolean;
   orden: number;
+  tipo: TipoInmueble;
+  capacidad: number | null;
+  tarifa_hora: number | null;
+  tarifa_dia: number | null;
+  tarifa_socio_descuento: number;
 }
+
+export type TipoInmueble = "local" | "oficina" | "salon" | "otro";
+export const TIPOS_INMUEBLE: Record<TipoInmueble, string> = { local: "Local", oficina: "Oficina", salon: "Salón", otro: "Otro" };
 
 export type AjusteIndice = "ninguno" | "ipc" | "icl" | "casa_propia" | "porcentaje";
 export const AJUSTES: Record<AjusteIndice, string> = {
@@ -429,9 +437,23 @@ export interface AlquilerContrato {
   proximo_ajuste: string | null;
   deposito: number | null;
   facturar: boolean;
-  estado: "vigente" | "finalizado";
+  estado: "vigente" | "finalizado" | "cancelado";
   observaciones: string | null;
+  modalidad: "mensual" | "temporal";
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  motivo: string | null;
+  personas: number | null;
   created_at: string;
+}
+
+/** Reserva temporal (vista reservas_detalle) */
+export interface Reserva extends AlquilerContrato {
+  inmueble_nombre: string;
+  inmueble_tipo: TipoInmueble;
+  total_cargos: number;
+  cobrado: number;
+  pendiente: number;
 }
 
 export interface AlquilerCargo {

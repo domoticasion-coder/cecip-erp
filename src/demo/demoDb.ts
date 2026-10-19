@@ -10,6 +10,7 @@ import cambios005 from "../../supabase/migrations/005_cobros_alquileres_facturac
 import padron2026 from "../../supabase/migrations/006_padron_2026.sql?raw";
 import capacitaciones008 from "../../supabase/migrations/008_capacitaciones.sql?raw";
 import copiloto009 from "../../supabase/migrations/009_copiloto_erp.sql?raw";
+import salones010 from "../../supabase/migrations/010_alquiler_salones.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
@@ -262,9 +263,37 @@ select set_config('request.jwt.claim.sub', '', false);
 select set_config('request.jwt.claims', '', false);
 `;
 
+// Salón de alquiler temporal con reservas de ejemplo (migración 010)
+const SEED_010 = `
+update inmuebles set tipo = 'local' where orden = 1;
+update inmuebles set tipo = 'oficina' where orden = 2;
+update inmuebles set tipo = 'salon', capacidad = 60 where orden = 3;
+insert into inmuebles (nombre, direccion, descripcion, tipo, capacidad, tarifa_hora, tarifa_dia, tarifa_socio_descuento, orden)
+values ('Salón auditorio', '25 de Mayo 28, 2° piso (DEMO)', 'Auditorio con proyector y sonido, para eventos, capacitaciones y reuniones', 'salon', 120, 25000, 160000, 20, 4);
+
+select set_config('request.jwt.claim.sub', '${U.admin.id}', false);
+select set_config('request.jwt.claims', '{"role":"authenticated"}', false);
+select crear_reserva((select id from inmuebles where nombre = 'Salón auditorio'), 'Estudio Jurídico Paz & Asoc.', current_date + 3, null, '18:00', '21:00',
+  75000, 0, 'Charla para clientes', 50, null, '30-71999888-2', 'RI', 'eventos@pazasoc.demo', '343 470-1122');
+select crear_reserva((select id from inmuebles where nombre = 'Salón auditorio'), 'Lucía Fernández', current_date + 9, null, '20:00', '23:59',
+  100000, 30000, 'Cumpleaños de 15', 90, null, '27-38111222-6', 'Consumidor final', null, '343 512-3344');
+select crear_reserva((select id from inmuebles where nombre = 'Salón auditorio'), s.razon_social, current_date + 16, current_date + 17, null, null,
+  256000, 50000, 'Jornada de capacitación interna', 40, s.id, s.cuit, s.condicion_iva, s.email, s.whatsapp)
+from socios s where s.numero_socio = 2075;
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+select registrar_pago_alquiler(c.id, 'Transferencia', null, current_date - 1)
+from alquiler_cargos c join alquiler_contratos k on k.id = c.contrato_id
+where k.modalidad = 'temporal' and (k.inquilino_nombre like 'Estudio Jurídico%' or c.concepto like 'Seña%');
+update facturas f set estado = 'emitida', punto_venta = 3, numero = 3000 + x.n, cae = '7' || lpad(((3000 + x.n) * 7919)::text, 13, '0'),
+  cae_vencimiento = f.fecha + 10, enviada_at = now(), emitida_at = now()
+from (select id, row_number() over (order by created_at, id) as n from facturas where estado = 'en_cola' and origen = 'alquiler') x where x.id = f.id;
+select set_config('request.jwt.claims', '', false);
+`;
+
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v13";
+const IDB_NAME = "cecip-demo-v14";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -285,7 +314,9 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(SEED_005);
         await db.exec(capacitaciones008);
         await db.exec(SEED_008);
+        await db.exec(salones010);
         await db.exec(copiloto009);
+        await db.exec(SEED_010);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;

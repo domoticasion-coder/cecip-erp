@@ -269,6 +269,8 @@ const RPC_TIPO: Record<string, "scalar" | "row" | "set"> = {
   anular_pago_inscripcion: "row",
   cargar_inscripcion_a_cuenta: "row",
   facturar_inscripcion: "scalar",
+  crear_reserva: "scalar",
+  cancelar_reserva: "scalar",
 };
 
 export async function rpc(name: string, params: Record<string, unknown> = {}, who?: Identidad): Promise<Result> {

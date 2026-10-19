@@ -18,7 +18,7 @@ const GUIA_ERP = `GUÍA DEL ERP (dónde se hace cada cosa):
 - Cobranzas y morosos: lista de deudores y envío masivo de recordatorios.
 - Tesorería y banco: movimientos de caja y bancos; pestaña "Banco Santander" para sincronizar, importar el extracto y conciliar (imputar a cuotas o alquileres).
 - Facturación: comprobantes emitidos en ARCA vía n8n, cola y errores (reintentar); pestaña "Conexión ARCA / n8n".
-- Alquileres: cobros mensuales de los 3 inmuebles, contratos y ajustes (ICL, IPC, porcentaje).
+- Alquileres: cobros (mensuales y de reservas), pestaña "Salones y reservas" para alquileres temporales por día u horas (con seña, calendario y control de superposición) y "Inmuebles y contratos" para contratos mensuales y ajustes (ICL, IPC, porcentaje).
 - Comunicación: comunicados del portal (con imagen), email masivo, campañas de WhatsApp con mensajes variados y espera entre envíos, historial.
 - Eventos: charlas y actividades, formulario público para no socios.
 - Capacitaciones: cursos (docente, días, horario, clases, precios socio/no socio, honorarios), inscriptos con datos de facturación, cobro y factura, pestañas Docentes y Pagos a docentes.
@@ -98,6 +98,12 @@ export function armarContextoErp(d: any, quien: { nombre: string; rol: string })
     p.push("ALQUILERES:\n" + d.alquileres.map((a: any) => a.inquilino_nombre
       ? `- ${a.inmueble}: ${a.inquilino_nombre}, ${pesos(a.monto_mensual)}/mes, vence el día ${a.dia_vencimiento}, ajuste ${a.ajuste_indice}${a.proximo_ajuste ? ` (próximo ${fechaAR(a.proximo_ajuste)})` : ""}${a.fecha_fin ? `, contrato hasta ${fechaAR(a.fecha_fin)}` : ""}; adeudado ${pesos(a.adeudado)}${Number(a.vencidos) ? ` (${a.vencidos} vencidos)` : ""}`
       : `- ${a.inmueble}: sin contrato vigente`).join("\n"));
+  }
+  if (d.reservas?.length) {
+    p.push("RESERVAS TEMPORALES DE SALONES (desde hace 7 días):\n" + d.reservas.map((x: any) =>
+      `- ${fechaAR(x.desde)}${x.hasta && x.hasta !== x.desde ? ` al ${fechaAR(x.hasta)}` : ""}${x.hora_inicio ? ` ${String(x.hora_inicio).slice(0, 5)}-${String(x.hora_fin || "").slice(0, 5)} hs` : " (todo el día)"}` +
+      ` · ${x.inmueble} · ${x.cliente}${x.motivo ? ` (${x.motivo})` : ""}${x.personas ? `, ${x.personas} personas` : ""}: ${pesos(x.precio)}` +
+      `${Number(x.pendiente) ? `, falta cobrar ${pesos(x.pendiente)}` : ", cobrado"}${x.contacto ? `, contacto ${x.contacto}` : ""}`).join("\n"));
   }
   if (d.facturas) {
     p.push(`FACTURACIÓN: comprobantes por estado ${Object.entries(d.facturas.por_estado || {}).map(([k, v]) => `${k} ${v}`).join(", ") || "ninguno"}; emitido este mes ${pesos(d.facturas.emitidas_mes)}.` +
