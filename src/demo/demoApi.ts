@@ -132,11 +132,18 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
 
     case "staff/invitar": {
       const [st] = await q(comoYo, "select rol from staff where user_id = auth.uid()");
-      if (st?.rol !== "admin") throw new Error("Solo un administrador puede invitar personal.");
+      if (st?.rol !== "admin") throw new Error("Solo un administrador puede gestionar al personal.");
+      const clave = String(body.password || "");
+      if (clave && (clave.length < 8 || !/[A-Za-z]/.test(clave) || !/\d/.test(clave))) throw new Error("La contraseña tiene que tener al menos 8 caracteres, con letras y números.");
+      // En la demo todos entran con la contraseña de demo: solo se valida
+      if (body.user_id) {
+        if (!clave) throw new Error("Escribí la contraseña nueva.");
+        return { ok: true, clave: true };
+      }
       if (!body.nombre?.trim() || !body.email?.trim()) throw new Error("Completá nombre y email.");
       const [u] = await q(SUPER, `insert into auth.users (email) values (${lit(body.email.trim().toLowerCase())}) returning id`);
       await q(SUPER, `insert into staff (user_id, nombre, email, rol) values (${lit(u.id)}, ${lit(body.nombre.trim())}, ${lit(body.email.trim().toLowerCase())}, ${lit(body.rol)})`);
-      return { ok: true };
+      return { ok: true, clave: !!clave };
     }
 
     case "comercia/difundir": {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, RefreshCw, Save, Trash2, UserPlus } from "lucide-react";
+import { KeyRound, Plus, RefreshCw, Save, Trash2, UserPlus } from "lucide-react";
 import { supabase, traducirError, unwrap } from "../../lib/supabase";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
@@ -309,6 +309,7 @@ function Personal() {
   const toast = useToast();
   const invalidate = useInvalidate();
   const [invitar, setInvitar] = useState(false);
+  const [clave, setClave] = useState<Staff | null>(null);
 
   const { data } = useQuery({
     queryKey: ["staff"],
@@ -327,7 +328,7 @@ function Personal() {
 
   return (
     <>
-      <Card title="Personal con acceso al ERP" actions={<Button size="sm" icon={<UserPlus className="h-3.5 w-3.5" />} onClick={() => setInvitar(true)}>Invitar</Button>}>
+      <Card title="Personal con acceso al ERP" actions={<Button size="sm" icon={<UserPlus className="h-3.5 w-3.5" />} onClick={() => setInvitar(true)}>Agregar</Button>}>
         <Table>
           <thead className="bg-slate-50"><tr><th className="th">Nombre</th><th className="th">Rol</th><th className="th">Estado</th><th className="th"></th></tr></thead>
           <tbody className="divide-y divide-slate-100">
@@ -342,19 +343,21 @@ function Personal() {
                 </td>
                 <td className="td">{s.activo ? <Badge tone="green">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
                 <td className="td text-right">
+                  <Button size="sm" variant="ghost" icon={<KeyRound className="h-3.5 w-3.5" />} onClick={() => setClave(s)}>Contraseña</Button>
                   <Button size="sm" variant="ghost" onClick={() => actualizar(s, { activo: !s.activo })}>{s.activo ? "Desactivar" : "Reactivar"}</Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </Table>
-        <div className="border-t border-slate-100 p-4 text-xs text-slate-500">
-          <b>Administrador:</b> todo, incluida la configuración. <b>Tesorería:</b> cuotas, cobros, tesorería y recordatorios.{" "}
-          <b>Atención al socio:</b> socios, comunicación, eventos, accesos al portal e información del Copiloto. Todos pueden consultar socios y cuotas.{" "}
-          <b>ComercIA (IEC / FactorIA):</b> usuario externo que solo administra ComercIA (solicitudes, promociones, convenio, ofertas, IEC Services, cursos y ajustes); no ve socios, cuotas ni tesorería.
+        <div className="space-y-1 border-t border-slate-100 p-4 text-xs text-slate-500">
+          {Object.values(ROLES_INFO).filter((r) => r.vigente).map((r) => (
+            <div key={r.nombre}><b>{r.nombre}:</b> {r.descripcion}</div>
+          ))}
         </div>
       </Card>
       <InvitarModal open={invitar} onClose={() => setInvitar(false)} />
+      <ClaveModal persona={clave} onClose={() => setClave(null)} />
     </>
   );
 }
@@ -365,6 +368,7 @@ function InvitarModal({ open, onClose }: { open: boolean; onClose: () => void })
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [rol, setRol] = useState<Rol>("administracion");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -372,10 +376,14 @@ function InvitarModal({ open, onClose }: { open: boolean; onClose: () => void })
     setSaving(true);
     setError(null);
     try {
-      const r = await api<{ reactivado?: boolean }>("staff/invitar", { nombre, email, rol });
-      toast(r.reactivado ? "Usuario reactivado." : `Invitación enviada a ${email}. Va a recibir un email para definir su contraseña.`);
+      const r = await api<{ reactivado?: boolean; clave?: boolean }>("staff/invitar", { nombre, email, rol, password });
+      toast(
+        r.clave ? `Usuario listo: ${email} ya puede entrar al ERP con la contraseña que definiste.`
+          : r.reactivado ? "Usuario reactivado."
+          : `Invitación enviada a ${email}. Va a recibir un email para definir su contraseña.`
+      );
       invalidate("staff");
-      setNombre(""); setEmail("");
+      setNombre(""); setEmail(""); setPassword("");
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -385,8 +393,8 @@ function InvitarModal({ open, onClose }: { open: boolean; onClose: () => void })
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Invitar al personal"
-      footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={saving} onClick={enviar}>Enviar invitación</Button></>}>
+    <Modal open={open} onClose={onClose} title="Agregar al personal"
+      footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={saving} onClick={enviar}>{password ? "Crear usuario" : "Enviar invitación"}</Button></>}>
       <div className="space-y-3">
         <Field label="Nombre y apellido"><Input value={nombre} onChange={(e) => setNombre(e.target.value)} /></Field>
         <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
@@ -396,6 +404,45 @@ function InvitarModal({ open, onClose }: { open: boolean; onClose: () => void })
           </Select>
         </Field>
         <p className="text-xs text-slate-500">{ROLES_INFO[rol]?.descripcion}</p>
+        <Field label="Contraseña" hint="Opcional. Si la completás, el usuario queda listo para entrar con esa contraseña. Si la dejás vacía, se le envía una invitación por email para que la defina.">
+          <Input type="text" autoComplete="new-password" placeholder="Mínimo 8 caracteres, con letras y números" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </Field>
+        <ErrorBox error={error} />
+      </div>
+    </Modal>
+  );
+}
+
+/** El administrador define una contraseña nueva para alguien del personal */
+function ClaveModal({ persona, onClose }: { persona: Staff | null; onClose: () => void }) {
+  const toast = useToast();
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function guardar() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api("staff/invitar", { user_id: persona!.user_id, password });
+      toast(`Contraseña actualizada para ${persona!.nombre}. Pasásela por un medio privado.`);
+      setPassword("");
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open={!!persona} onClose={() => { setPassword(""); setError(null); onClose(); }} title={`Contraseña de ${persona?.nombre || ""}`}
+      footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={saving} disabled={!password} onClick={guardar}>Guardar contraseña</Button></>}>
+      <div className="space-y-3">
+        <p className="text-sm text-slate-600">{persona?.email}</p>
+        <Field label="Contraseña nueva" hint="Mínimo 8 caracteres, con letras y números. La persona puede cambiarla después desde “¿Olvidaste tu contraseña?”.">
+          <Input type="text" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </Field>
         <ErrorBox error={error} />
       </div>
     </Modal>
