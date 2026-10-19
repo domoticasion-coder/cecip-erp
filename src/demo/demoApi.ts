@@ -60,6 +60,14 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
     }
 
     case "comunicaciones/enviar": {
+      if (body.para !== undefined) {
+        const dirs = String(body.para).split(/[\s,;]+/).map((e: string) => e.trim()).filter(Boolean);
+        if (!dirs.length) throw new Error("Escribí el email del destinatario.");
+        if (!body.asunto?.trim() || !body.cuerpo?.trim()) throw new Error("Completá asunto y mensaje.");
+        await q(SERVICIO, `insert into envios (canal, tipo, asunto, destinatario, created_by) values ${dirs
+          .map((d: string) => `('email', 'manual', ${lit(body.asunto + " (DEMO: no enviado)")}, ${lit(d)}, ${lit(yo.id)})`).join(", ")}`);
+        return { enviados: dirs.length, errores: [] };
+      }
       const socios = await q(SERVICIO, `select id, email, coalesce(nombre_comercial, razon_social) as nombre from socios where id in ${ids(body.socio_ids)}`);
       const con = socios.filter((s: any) => s.email);
       if (con.length) {

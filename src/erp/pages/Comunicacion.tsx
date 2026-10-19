@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Mail, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { supabase, traducirError, unwrap } from "../../lib/supabase";
+import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { fechaHora, nombreSocio } from "../../lib/format";
 import type { Comunicado, Envio } from "../../lib/types";
@@ -13,7 +14,7 @@ import { WhatsappCampanas } from "../components/WhatsappCampanas";
 import { ImagenInput } from "../../components/ImagenInput";
 import { useSociosResumen } from "./Socios";
 
-type Tab = "comunicados" | "whatsapp" | "masivo" | "historial";
+type Tab = "comunicados" | "whatsapp" | "individual" | "masivo" | "historial";
 
 export default function Comunicacion() {
   const [params] = useSearchParams();
@@ -27,12 +28,14 @@ export default function Comunicacion() {
         tabs={[
           { value: "comunicados", label: "Comunicados del portal" },
           { value: "whatsapp", label: "WhatsApp" },
+          { value: "individual", label: "Email individual" },
           { value: "masivo", label: "Email masivo" },
           { value: "historial", label: "Historial de envíos" },
         ]}
       />
       {tab === "comunicados" && <Comunicados />}
       {tab === "whatsapp" && <WhatsappCampanas segmentoInicial={params.get("segmento") || undefined} />}
+      {tab === "individual" && <EmailIndividual />}
       {tab === "masivo" && <EnvioMasivo />}
       {tab === "historial" && <Historial />}
     </>
@@ -176,6 +179,65 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
 }
 
 // ---------------------------------------------------------------------------
+
+/** Un email escrito a mano a una dirección cualquiera (no hace falta que sea socio) */
+function EmailIndividual() {
+  const toast = useToast();
+  const invalidate = useInvalidate();
+  const [para, setPara] = useState("");
+  const [asunto, setAsunto] = useState("");
+  const [cuerpo, setCuerpo] = useState("");
+  const [imagen, setImagen] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  async function enviar() {
+    if (!para.trim()) return setError("Escribí el email del destinatario.");
+    if (!asunto.trim() || !cuerpo.trim()) return setError("Completá asunto y mensaje.");
+    setSending(true);
+    setError(null);
+    try {
+      const r = await api<{ enviados: number; errores: { socio: string; error: string }[] }>("comunicaciones/enviar", {
+        para, asunto, cuerpo, imagen_url: imagen,
+      });
+      if (r.errores.length) {
+        setError(r.errores.map((e) => `${e.socio}: ${e.error}`).join("\n"));
+      } else {
+        toast(r.enviados === 1 ? "Email enviado." : `Emails enviados: ${r.enviados}.`, "ok");
+        setPara("");
+        setAsunto("");
+        setCuerpo("");
+        setImagen(null);
+      }
+      invalidate("envios");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Card title="Escribir un email" className="max-w-3xl">
+      <div className="space-y-3 p-4">
+        <Field label="Para" hint="Una o varias direcciones separadas por coma.">
+          <Input type="text" inputMode="email" placeholder="nombre@empresa.com" value={para} onChange={(e) => setPara(e.target.value)} />
+        </Field>
+        <Field label="Asunto">
+          <Input value={asunto} onChange={(e) => setAsunto(e.target.value)} />
+        </Field>
+        <Field label="Mensaje" hint="Los links se vuelven clickeables. Sale con el diseño y el logo del CeCIP.">
+          <Textarea rows={10} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} />
+        </Field>
+        <ImagenInput value={imagen} onChange={setImagen} carpeta="emails" hint="Opcional: se muestra debajo del título." />
+        <ErrorBox error={error} />
+        <div className="flex justify-end">
+          <Button icon={<Send className="h-4 w-4" />} loading={sending} onClick={enviar}>Enviar</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function EnvioMasivo() {
   const { data: socios, isLoading } = useSociosResumen();

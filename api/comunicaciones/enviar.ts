@@ -5,14 +5,18 @@ import { encolarEmails } from "../_lib/integraciones.js";
 /**
  * POST /api/comunicaciones/enviar { socio_ids, asunto, cuerpo, comunicado_id?, imagen_url? }
  * Envío masivo de emails. Variables disponibles en asunto y cuerpo: {{nombre}}, {{deuda}}.
+ *
+ * POST /api/comunicaciones/enviar { para, asunto, cuerpo, imagen_url? }
+ * Email individual a una o más direcciones escritas a mano (separadas por coma), sin socio asociado.
  */
 export const POST = handle(async (req) => {
   const caller = await getCaller(req);
   requireStaff(caller, ["atencion", "tesoreria"]);
 
-  const body = await readJson<{ socio_ids?: string[]; asunto?: string; cuerpo?: string; comunicado_id?: string; imagen_url?: string | null }>(req);
+  const body = await readJson<{ socio_ids?: string[]; para?: string; asunto?: string; cuerpo?: string; comunicado_id?: string; imagen_url?: string | null }>(req);
   const asunto = body.asunto?.trim();
   const cuerpo = body.cuerpo?.trim();
+  if (body.para !== undefined) return json(await enviarIndividual(body.para, asunto, cuerpo, body.imagen_url, caller.userId));
   if (!body.socio_ids?.length) throw new HttpError(400, "Elegí al menos un destinatario.");
   if (!asunto || !cuerpo) throw new HttpError(400, "Completá asunto y mensaje.");
   if (body.socio_ids.length > 1000) throw new HttpError(400, "Máximo 1000 destinatarios por envío.");
@@ -97,3 +101,26 @@ export const POST = handle(async (req) => {
     ],
   });
 });
+
+/** Email individual: direcciones escritas a mano, se envía directo (sin la cola de n8n) */
+async function enviarIndividual(para: string, asunto: string | undefined, cuerpo: string | undefined, imagenUrl: string | null | undefined, userId: string) {
+  const direcciones = [...new Set(String(para || "").split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (!direcciones.length) throw new HttpError(400, "Escribí el email del destinatario.");
+  const invalidas = direcciones.filter((e) => !emailValido(e));
+  if (invalidas.length) throw new HttpError(400, `Email inválido: ${invalidas.join(", ")}`);
+  if (direcciones.length > 20) throw new HttpError(400, "Máximo 20 direcciones. Para más, usá el email masivo.");
+  if (!asunto || !cuerpo) throw new HttpError(400, "Completá asunto y mensaje.");
+
+  const html = emailLayout({ titulo: asunto, cuerpoHtml: textToHtml(cuerpo), imagenUrl });
+  const resultados = await sendEmails(direcciones.map((to) => ({ to, subject: asunto, text: cuerpo, html })));
+
+  await supabaseAdmin().from("envios").insert(resultados.map((r) => ({
+    socio_id: null, comunicado_id: null, canal: "email", tipo: "manual", asunto, destinatario: r.to,
+    estado: r.ok ? "enviado" : "error", error: r.error || null, created_by: userId,
+  })));
+
+  return {
+    enviados: resultados.filter((r) => r.ok).length,
+    errores: resultados.filter((r) => !r.ok).map((r) => ({ socio: r.to, error: r.error })),
+  };
+}
