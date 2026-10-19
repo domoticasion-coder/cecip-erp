@@ -1,6 +1,6 @@
 import { HttpError, env, getCaller, handle, json, readJson, requireStaff, supabaseAdmin } from "../_lib/core.js";
-import { emailLayout, emailValido, sendEmails, textToHtml } from "../_lib/email.js";
-import { encolarEmails } from "../_lib/integraciones.js";
+import { emailLayout, emailValido, textToHtml } from "../_lib/email.js";
+import { encolarEmails } from "../_lib/colaEmails.js";
 
 /**
  * POST /api/comercia/difundir { asunto, cuerpo, rubro?, categoria_id?, soloContar? }
@@ -48,17 +48,7 @@ export const POST = handle(async (req) => {
     }),
   }));
 
-  // Envío masivo por n8n (si está configurado)
-  const encolado = await encolarEmails(new URL(req.url).origin, mensajes.map((m, i) => ({
-    ...m, meta: { socio_id: socios[i].id, tipo: "comercia", created_by: caller.userId },
-  })));
-  if (encolado) return json({ enviados: encolado.encolados, encolados: true, errores: 0 });
-
-  const resultados = await sendEmails(mensajes);
-  await sb.from("envios").insert(resultados.map((r, i) => ({
-    socio_id: socios[i].id, canal: "email", tipo: "comercia", asunto: mensajes[i].subject,
-    destinatario: r.to, estado: r.ok ? "enviado" : "error", error: r.error || null, created_by: caller.userId,
-  })));
-
-  return json({ enviados: resultados.filter((r) => r.ok).length, errores: resultados.filter((r) => !r.ok).length });
+  // Pasa por la cola: sale ya lo que entra en el cupo diario y el resto en los días siguientes
+  const r = await encolarEmails(mensajes.map((m, i) => ({ ...m, tipo: "comercia" as const, socio_id: socios[i].id })), caller.userId);
+  return json({ enviados: r.enviados, pendientes: r.pendientes, errores: r.errores.length, cupo_diario: r.cupo_diario });
 });

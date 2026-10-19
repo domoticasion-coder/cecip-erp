@@ -10,6 +10,7 @@ import type { Comunicado, Envio } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Table, Tabs, Textarea, useToast } from "../../components/ui";
 import { useCategorias, useInvalidate } from "../data";
 import { EnviarEmailModal } from "../components/EnviarEmail";
+import { ColaEmails } from "../components/ColaEmails";
 import { WhatsappCampanas } from "../components/WhatsappCampanas";
 import { ImagenInput } from "../../components/ImagenInput";
 import { useSociosResumen } from "./Socios";
@@ -18,6 +19,9 @@ type Tab = "comunicados" | "whatsapp" | "individual" | "masivo" | "historial";
 
 export default function Comunicacion() {
   const [params] = useSearchParams();
+  const { can } = useAuth();
+  // Presidente y Comisión directiva consultan comunicados e historial, sin enviar
+  const envia = can("atencion", "tesoreria", "prensa");
   const [tab, setTab] = useState<Tab>(() => (params.get("tab") as Tab) || "comunicados");
   return (
     <>
@@ -27,16 +31,18 @@ export default function Comunicacion() {
         onChange={setTab}
         tabs={[
           { value: "comunicados", label: "Comunicados del portal" },
-          { value: "whatsapp", label: "WhatsApp" },
-          { value: "individual", label: "Email individual" },
-          { value: "masivo", label: "Email masivo" },
+          ...(envia ? [
+            { value: "whatsapp" as Tab, label: "WhatsApp" },
+            { value: "individual" as Tab, label: "Email individual" },
+            { value: "masivo" as Tab, label: "Email masivo" },
+          ] : []),
           { value: "historial", label: "Historial de envíos" },
         ]}
       />
       {tab === "comunicados" && <Comunicados />}
-      {tab === "whatsapp" && <WhatsappCampanas segmentoInicial={params.get("segmento") || undefined} />}
-      {tab === "individual" && <EmailIndividual />}
-      {tab === "masivo" && <EnvioMasivo />}
+      {envia && tab === "whatsapp" && <WhatsappCampanas segmentoInicial={params.get("segmento") || undefined} />}
+      {envia && tab === "individual" && <EmailIndividual />}
+      {envia && tab === "masivo" && <EnvioMasivo />}
       {tab === "historial" && <Historial />}
     </>
   );
@@ -65,7 +71,7 @@ function Comunicados() {
   }
 
   const activosConEmail = (socios || []).filter((s) => s.estado === "activo" && s.email).map((s) => s.id);
-  const puede = can("atencion");
+  const puede = can("atencion", "prensa");
 
   return (
     <>
@@ -261,6 +267,7 @@ function EnvioMasivo() {
 
   return (
     <div className="grid gap-5 lg:grid-cols-3">
+      <div className="lg:col-span-3"><ColaEmails /></div>
       <Card title="Destinatarios" className="h-fit">
         <div className="space-y-3 p-4">
           <Field label="Socios">

@@ -1,5 +1,6 @@
 import { env, pesos, supabaseAdmin } from "./core.js";
-import { emailLayout, emailValido, escapeHtml, sendEmails, textToHtml, type EmailMessage } from "./email.js";
+import { emailLayout, emailValido, escapeHtml, textToHtml, type EmailMessage } from "./email.js";
+import { encolarEmails } from "./colaEmails.js";
 import { crearLinkPago } from "./pagos.js";
 
 /** Ejecuta fn sobre items con un máximo de "limite" tareas simultáneas */
@@ -15,20 +16,25 @@ const fecha = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("es-AR
 
 /**
  * Envía a cada socio un email con el detalle de sus cuotas pendientes y un link de pago
- * de Mercado Pago. Registra cada envío en la tabla "envios".
+ * de Mercado Pago. Pasa por la cola de emails (cupo diario); cada envío queda en "envios".
  */
 export async function enviarRecordatorios(
   socioIds: string[],
   opts: { createdBy: string | null; soloCuotas?: Record<string, string[]> } = { createdBy: null }
-): Promise<{ enviados: number; errores: { socio: string; error: string }[] }> {
+): Promise<{ enviados: number; pendientes: number; errores: { socio: string; error: string }[] }> {
   const sb = supabaseAdmin();
   const errores: { socio: string; error: string }[] = [];
   const mensajes: (EmailMessage & { socioId: string; cuotaIds: string[] })[] = [];
 
+  // Los socios que ya tienen un recordatorio esperando en la cola no se vuelven a encolar
+  const { data: enCola } = await sb.from("email_cola").select("socio_id")
+    .eq("tipo", "recordatorio").in("estado", ["pendiente", "enviando"]).in("socio_id", socioIds);
+  const yaEncolados = new Set((enCola || []).map((c) => c.socio_id));
+
   const { data: socios } = await sb
     .from("socios")
     .select("id, razon_social, nombre_comercial, email")
-    .in("id", socioIds);
+    .in("id", socioIds.filter((id) => !yaEncolados.has(id)));
 
   const { data: cfg } = await sb.from("configuracion").select("*").eq("id", 1).single();
 
@@ -84,29 +90,10 @@ export async function enviarRecordatorios(
     });
   });
 
-  const resultados = mensajes.length ? await sendEmails(mensajes) : [];
-  let enviados = 0;
-  const logs = resultados.map((r, i) => {
-    const m = mensajes[i];
-    if (r.ok) enviados++;
-    else errores.push({ socio: m.to, error: r.error || "Error" });
-    return {
-      socio_id: m.socioId,
-      canal: "email",
-      tipo: "recordatorio",
-      asunto: m.subject,
-      destinatario: m.to,
-      estado: r.ok ? "enviado" : "error",
-      error: r.error || null,
-      created_by: opts.createdBy,
-    };
-  });
-  if (logs.length) await sb.from("envios").insert(logs);
+  // Pasa por la cola con cupo diario; la fecha del aviso se marca en las cuotas cuando el email sale
+  const r = await encolarEmails(mensajes.map((m) => ({
+    to: m.to, subject: m.subject, html: m.html, tipo: "recordatorio" as const, socio_id: m.socioId, cuota_ids: m.cuotaIds,
+  })), opts.createdBy);
 
-  const okIds = mensajes.filter((_, i) => resultados[i]?.ok).flatMap((m) => m.cuotaIds);
-  if (okIds.length) {
-    await sb.from("cuotas").update({ ultimo_recordatorio: new Date().toISOString() }).in("id", okIds);
-  }
-
-  return { enviados, errores };
+  return { enviados: r.enviados, pendientes: r.pendientes, errores: [...errores, ...r.errores] };
 }

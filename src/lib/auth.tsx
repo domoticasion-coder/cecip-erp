@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import type { Rol, Staff, SocioUsuario } from "./types";
+import type { Staff, SocioUsuario } from "./types";
+import { tienePermiso, veSeccion, type Permiso, type Seccion } from "../../shared/roles";
 
 interface AuthState {
   session: Session | null;
@@ -13,7 +14,10 @@ interface AuthState {
   refresh: () => Promise<void>;
   clearRecovery: () => void;
   signOut: () => Promise<void>;
-  can: (...roles: Rol[]) => boolean;
+  /** ¿Puede modificar datos de alguno de estos grupos? (sin argumentos: solo el administrador del sistema) */
+  can: (...permisos: Permiso[]) => boolean;
+  /** ¿Ve esta sección del ERP? */
+  ve: (seccion: Seccion) => boolean;
 }
 
 const AuthCtx = createContext<AuthState | null>(null);
@@ -84,7 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRecovery(false);
       await supabase.auth.signOut();
     },
-    can: (...roles) => !!staff && (staff.rol === "admin" || roles.includes(staff.rol)),
+    can: (...permisos) => !!staff && tienePermiso(staff.rol, permisos),
+    ve: (seccion) => !!staff && veSeccion(staff.rol, seccion),
   };
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

@@ -11,12 +11,19 @@ import padron2026 from "../../supabase/migrations/006_padron_2026.sql?raw";
 import capacitaciones008 from "../../supabase/migrations/008_capacitaciones.sql?raw";
 import copiloto009 from "../../supabase/migrations/009_copiloto_erp.sql?raw";
 import salones010 from "../../supabase/migrations/010_alquiler_salones.sql?raw";
+import colaEmails011 from "../../supabase/migrations/011_cola_emails.sql?raw";
+import roles012 from "../../supabase/migrations/012_roles.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
   tesoreria: { id: "00000000-0000-4000-8000-0000000000a2", email: "tesoreria@cecip.demo", nombre: "Esteban Peralta", rol: "tesoreria" },
   atencion: { id: "00000000-0000-4000-8000-0000000000a3", email: "atencion@cecip.demo", nombre: "Clara Viggiano", rol: "atencion" },
   comercia: { id: "00000000-0000-4000-8000-0000000000a4", email: "comercia@cecip.demo", nombre: "Equipo ComercIA", rol: "comercia" },
+  administracion: { id: "00000000-0000-4000-8000-0000000000a5", email: "administracion@cecip.demo", nombre: "Laura Bertoni", rol: "administracion" },
+  prensa: { id: "00000000-0000-4000-8000-0000000000a6", email: "prensa@cecip.demo", nombre: "Martín Sosa", rol: "prensa" },
+  presidente: { id: "00000000-0000-4000-8000-0000000000a7", email: "presidente@cecip.demo", nombre: "Roberto Ferrari", rol: "presidente" },
+  prosecretario: { id: "00000000-0000-4000-8000-0000000000a8", email: "prosecretario@cecip.demo", nombre: "Silvia Retamar", rol: "prosecretario" },
+  comision: { id: "00000000-0000-4000-8000-0000000000a9", email: "comision@cecip.demo", nombre: "Diego Acosta", rol: "comision" },
   socio: { id: "00000000-0000-4000-8000-0000000000b1", email: "socio@cecip.demo", nombre: "Juan Pérez", rol: "socio" },
 } as const;
 
@@ -291,9 +298,16 @@ from (select id, row_number() over (order by created_at, id) as n from facturas 
 select set_config('request.jwt.claims', '', false);
 `;
 
+// Personal de ejemplo con los roles de la migración 012
+const ROLES_012 = ["administracion", "prensa", "presidente", "prosecretario", "comision"] as const;
+const SEED_012 = `
+insert into auth.users (id, email) values ${ROLES_012.map((k) => `('${U[k].id}', '${U[k].email}')`).join(", ")};
+insert into staff (user_id, nombre, email, rol) values ${ROLES_012.map((k) => `('${U[k].id}', '${U[k].nombre}', '${U[k].email}', '${k}')`).join(", ")};
+`;
+
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v14";
+const IDB_NAME = "cecip-demo-v16";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -317,6 +331,9 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(salones010);
         await db.exec(copiloto009);
         await db.exec(SEED_010);
+        await db.exec(colaEmails011);
+        await db.exec(roles012);
+        await db.exec(SEED_012);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;

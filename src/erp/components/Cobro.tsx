@@ -172,7 +172,7 @@ export function LinkPagoModal({ target, onClose }: { target: LinkTarget | null; 
   async function porEmail() {
     setSending(true);
     try {
-      const r = await api<{ enviados: number; errores: { error: string }[] }>("cobranzas/recordatorio", {
+      const r = await api<{ enviados: number; pendientes: number; errores: { error: string }[] }>("cobranzas/recordatorio", {
         socio_ids: [target!.socio.id], cuota_ids: target!.cuotaIds,
       });
       if (r.enviados) {
@@ -182,6 +182,9 @@ export function LinkPagoModal({ target, onClose }: { target: LinkTarget | null; 
           autor_nombre: staff?.nombre, created_by: staff?.user_id,
         });
         invalidate("notas", "envios", "cuotas");
+      } else if (r.pendientes) {
+        toast("Hoy ya se usó el cupo diario de emails: el recordatorio quedó en cola y sale mañana.");
+        invalidate("envios");
       } else toast(r.errores[0]?.error || "No se pudo enviar.", "error");
     } catch (e) {
       toast((e as Error).message, "error");

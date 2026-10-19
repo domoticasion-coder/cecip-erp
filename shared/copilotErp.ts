@@ -4,11 +4,12 @@
  * La usan la API real y el modo demo.
  */
 import { catalogoComerciaTexto } from "./comercia.js";
+import { ROLES as NOMBRES_ROLES } from "./roles.js";
 
 const pesos = (n: unknown) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" }).format(Number(n || 0));
 const fechaAR = (d: unknown) => (d ? new Date(String(d).length === 10 ? d + "T12:00:00" : String(d)).toLocaleDateString("es-AR") : "—");
 const DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
-const ROLES: Record<string, string> = { admin: "Administrador", tesoreria: "Tesorería", atencion: "Atención al socio", comercia: "ComercIA (IEC / FactorIA)" };
+const ROLES: Record<string, string> = NOMBRES_ROLES;
 
 /** Mapa del ERP para responder "¿cómo hago...?" */
 const GUIA_ERP = `GUÍA DEL ERP (dónde se hace cada cosa):

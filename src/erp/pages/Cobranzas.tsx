@@ -2,12 +2,14 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Download, Mail, MessageCircle, Search, CheckCircle2 } from "lucide-react";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { descargarCSV } from "../../lib/csv";
 import { nombreSocio, pesos } from "../../lib/format";
 import { normalizarWhatsapp } from "../../lib/whatsapp";
 import { Badge, Button, Card, Empty, Input, Loading, PageHeader, Select, Stat, Table, useToast } from "../../components/ui";
 import { useConfig, useInvalidate } from "../data";
 import { LinkPagoModal, type LinkTarget } from "../components/Cobro";
+import { textoEnvio } from "../components/ColaEmails";
 import { useSociosResumen } from "./Socios";
 
 export default function Cobranzas() {
@@ -22,6 +24,8 @@ export default function Cobranzas() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [link, setLink] = useState<LinkTarget | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
+  // Los roles de consulta (Presidente, Comisión directiva) ven la lista sin acciones
+  const puede = useAuth().can("tesoreria", "atencion");
 
   const lista = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -40,10 +44,10 @@ export default function Cobranzas() {
     if (ids.length > 1 && !confirm(`¿Enviar recordatorio de pago por email a ${ids.length} socios?`)) return;
     setEnviando(key);
     try {
-      const r = await api<{ enviados: number; errores: { socio: string; error: string }[] }>("cobranzas/recordatorio", { socio_ids: ids });
+      const r = await api<{ enviados: number; pendientes: number; errores: { socio: string; error: string }[] }>("cobranzas/recordatorio", { socio_ids: ids });
       toast(
-        `Recordatorios enviados: ${r.enviados}.` + (r.errores.length ? `\nSin enviar (${r.errores.length}): ${r.errores.slice(0, 5).map((e) => `${e.socio} – ${e.error}`).join("; ")}` : ""),
-        r.enviados ? "ok" : "error"
+        textoEnvio(r, "recordatorios") + (r.errores.length ? `\nSin enviar (${r.errores.length}): ${r.errores.slice(0, 5).map((e) => `${e.socio} – ${e.error}`).join("; ")}` : ""),
+        r.enviados || r.pendientes ? "ok" : "error"
       );
       setSel(new Set());
       invalidate("cuotas", "envios");
@@ -69,9 +73,11 @@ export default function Cobranzas() {
         }
         actions={
           <>
-          <Button variant="success" icon={<MessageCircle className="h-4 w-4" />} onClick={() => navigate("/comunicacion?tab=whatsapp&segmento=vencidas")}>
-            Campaña de WhatsApp a morosos
-          </Button>
+          {puede && (
+            <Button variant="success" icon={<MessageCircle className="h-4 w-4" />} onClick={() => navigate("/comunicacion?tab=whatsapp&segmento=vencidas")}>
+              Campaña de WhatsApp a morosos
+            </Button>
+          )}
           <Button variant="secondary" icon={<Download className="h-4 w-4" />}
             onClick={() => descargarCSV("morosos", lista.map((s) => ({
               numero: s.numero_socio, socio: nombreSocio(s), email: s.email, whatsapp: s.whatsapp,
@@ -107,7 +113,7 @@ export default function Cobranzas() {
           </Select>
         </div>
 
-        {sel.size > 0 && (
+        {puede && sel.size > 0 && (
           <div className="flex items-center gap-2 border-b border-brand-100 bg-brand-50 px-3 py-2 text-sm">
             <b>{sel.size} seleccionados</b>
             <Button size="sm" icon={<Mail className="h-3.5 w-3.5" />} loading={enviando === "bulk"} onClick={() => recordar([...sel], "bulk")}>
@@ -153,7 +159,7 @@ export default function Cobranzas() {
                   </td>
                   <td className="td text-right font-semibold tabular-nums text-red-700">{pesos(s.deuda)}</td>
                   <td className="td">
-                    <div className="flex justify-end gap-1">
+                    {puede && <div className="flex justify-end gap-1">
                       <Button size="sm" variant="success" icon={<MessageCircle className="h-3.5 w-3.5" />}
                         disabled={!normalizarWhatsapp(s.whatsapp)} onClick={() => setLink({ socio: s })} title="Generar link y enviar por WhatsApp">
                         WhatsApp
@@ -162,7 +168,7 @@ export default function Cobranzas() {
                         loading={enviando === s.id} onClick={() => recordar([s.id], s.id)}>
                         Email
                       </Button>
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               ))}

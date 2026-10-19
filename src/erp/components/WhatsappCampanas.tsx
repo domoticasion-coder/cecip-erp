@@ -87,7 +87,7 @@ function ListaCampanas({ origen, onNueva, onAbrir }: { origen: Origen; onNueva: 
     invalidate("wa");
   }
 
-  const puede = origen === "comercia" ? can("comercia") : can("atencion", "tesoreria");
+  const puede = origen === "comercia" ? can("comercia") : can("atencion", "tesoreria", "prensa");
 
   return (
     <div className="grid gap-5 lg:grid-cols-3">

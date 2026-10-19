@@ -14,57 +14,9 @@ import { HttpError, supabaseAdmin } from "./core.js";
 export const n8nConfig = () => ({
   facturas: process.env.N8N_FACTURAS_WEBHOOK_URL || "",
   banco: process.env.N8N_BANCO_WEBHOOK_URL || "",
-  envios: process.env.N8N_ENVIOS_WEBHOOK_URL || "",
   secreto: process.env.N8N_SECRET || "",
 });
 
-/** Datos de un email para el envío masivo vía n8n; "meta" vuelve en el resultado para registrarlo */
-export interface EmailEncolado {
-  to: string;
-  cc?: string[];
-  subject: string;
-  html: string;
-  text?: string;
-  meta: { socio_id: string | null; comunicado_id?: string | null; tipo: string; created_by: string | null };
-}
-
-/**
- * Envío masivo de emails: si está configurado N8N_ENVIOS_WEBHOOK_URL, el ERP le pasa la lista
- * completa a n8n (que la envía por lotes con pausas y avisa cada resultado a
- * /api/integraciones/envios-resultado). Devuelve null si n8n no está configurado.
- */
-export async function encolarEmails(origin: string, mensajes: EmailEncolado[]): Promise<{ encolados: number } | null> {
-  const url = n8nConfig().envios;
-  if (!url || !mensajes.length) return null;
-  await llamarN8n(url, {
-    evento: "enviar_emails",
-    callback_url: `${origin}/api/integraciones/envios-resultado`,
-    from: process.env.EMAIL_FROM,
-    reply_to: process.env.EMAIL_REPLY_TO || null,
-    mensajes,
-  });
-  return { encolados: mensajes.length };
-}
-
-/** Resultados del envío masivo que informa n8n: se registran en el historial de envíos */
-export async function registrarResultadosEnvio(body: any) {
-  const lista = Array.isArray(body?.resultados) ? body.resultados.slice(0, 1000) : [];
-  if (!lista.length) return { registrados: 0 };
-  const filas = lista.map((r: any) => ({
-    socio_id: /^[0-9a-f-]{36}$/i.test(String(r?.meta?.socio_id || "")) ? r.meta.socio_id : null,
-    comunicado_id: /^[0-9a-f-]{36}$/i.test(String(r?.meta?.comunicado_id || "")) ? r.meta.comunicado_id : null,
-    canal: "email",
-    tipo: ["comunicado", "recordatorio", "manual", "acceso", "comercia"].includes(r?.meta?.tipo) ? r.meta.tipo : "manual",
-    asunto: String(r?.subject || "").slice(0, 300),
-    destinatario: String(r?.to || "").slice(0, 200),
-    estado: r?.ok ? "enviado" : "error",
-    error: r?.ok ? null : String(r?.error || "Error de envío").slice(0, 500),
-    created_by: /^[0-9a-f-]{36}$/i.test(String(r?.meta?.created_by || "")) ? r.meta.created_by : null,
-  }));
-  const { error } = await supabaseAdmin().from("envios").insert(filas);
-  if (error) throw new Error(error.message);
-  return { registrados: filas.length };
-}
 
 /** Verifica que la llamada venga de n8n (header x-cecip-secret) */
 export function verificarSecreto(req: Request) {

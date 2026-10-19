@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { Button, ErrorBox, Field, Input, Modal, Textarea, useToast } from "../../components/ui";
 import { useInvalidate } from "../data";
 import { ImagenInput } from "../../components/ImagenInput";
+import { textoEnvio } from "./ColaEmails";
 
 /** Redactar y enviar un email a uno o varios socios */
 export function EnviarEmailModal({
@@ -35,13 +36,12 @@ export function EnviarEmailModal({
     setSending(true);
     setError(null);
     try {
-      const r = await api<{ enviados: number; encolados?: boolean; errores: { socio: string; error: string }[] }>("comunicaciones/enviar", {
+      const r = await api<{ enviados: number; pendientes: number; cupo_diario: number | null; errores: { socio: string; error: string }[] }>("comunicaciones/enviar", {
         socio_ids: socioIds, asunto, cuerpo, comunicado_id: comunicadoId, imagen_url: imagen,
       });
       toast(
-        (r.encolados ? `Se están enviando ${r.enviados} emails (el resultado de cada uno aparece en el historial de envíos).` : `Enviados: ${r.enviados}.`) +
-          (r.errores.length ? `\nNo enviados: ${r.errores.length} (ver historial de envíos).` : ""),
-        r.errores.length && !r.enviados ? "error" : "ok"
+        textoEnvio(r) + (r.errores.length ? `\nNo enviados: ${r.errores.length} (ver historial de envíos).` : ""),
+        r.errores.length && !r.enviados && !r.pendientes ? "error" : "ok"
       );
       invalidate("envios");
       onClose();

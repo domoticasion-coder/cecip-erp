@@ -1,4 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { tienePermiso, type Permiso, type Rol } from "../../shared/roles.js";
+
+export type { Rol, Permiso };
 
 // Cliente con service role: SOLO se usa en funciones del servidor, nunca en el navegador.
 let admin: SupabaseClient | null = null;
@@ -46,8 +49,6 @@ export async function readJson<T = any>(req: Request): Promise<T> {
   }
 }
 
-export type Rol = "admin" | "tesoreria" | "atencion" | "comercia";
-
 export interface Caller {
   userId: string;
   email: string;
@@ -78,9 +79,13 @@ export async function getCaller(req: Request): Promise<Caller> {
   };
 }
 
-export function requireStaff(c: Caller, roles: Rol[] = []): void {
+/**
+ * Exige que quien llama sea del personal y, si se indican permisos, que su rol tenga alguno
+ * (ver shared/roles.ts). Sin permisos alcanza con ser del personal; con [] solo el administrador.
+ */
+export function requireStaff(c: Caller, permisos?: Permiso[]): void {
   if (!c.staff) throw new HttpError(403, "Acceso solo para el personal de CeCIP.");
-  if (c.staff.rol !== "admin" && roles.length > 0 && !roles.includes(c.staff.rol)) {
+  if (permisos && !tienePermiso(c.staff.rol, permisos)) {
     throw new HttpError(403, "Tu rol no tiene permiso para esta acción.");
   }
 }

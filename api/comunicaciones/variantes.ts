@@ -7,7 +7,7 @@ import { variantesGemini } from "../_lib/copilot.js";
  */
 export const POST = handle(async (req) => {
   const caller = await getCaller(req);
-  requireStaff(caller, ["atencion", "tesoreria"]);
+  requireStaff(caller, ["atencion", "tesoreria", "prensa"]);
   const { mensaje, cantidad } = await readJson<{ mensaje?: string; cantidad?: number }>(req);
   if (!mensaje?.trim()) throw new HttpError(400, "Escribí el mensaje base.");
   const variantes = await variantesGemini(mensaje.trim(), cantidad || 6);

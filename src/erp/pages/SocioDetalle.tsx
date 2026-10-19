@@ -89,8 +89,8 @@ export default function SocioDetalle() {
               onClick={() => abrirWhatsapp(socio.whatsapp || socio.telefono, `Hola ${nombre}! Te escribimos del Centro Comercial e Industrial de Paraná.`)}>
               WhatsApp
             </Button>
-            <Button variant="secondary" icon={<Mail className="h-4 w-4" />} disabled={!socio.email} onClick={() => setEmail(true)}>Email</Button>
-            {socio.deuda > 0 && (
+            {can("atencion", "tesoreria", "prensa") && <Button variant="secondary" icon={<Mail className="h-4 w-4" />} disabled={!socio.email} onClick={() => setEmail(true)}>Email</Button>}
+            {socio.deuda > 0 && can("tesoreria", "atencion") && (
               <Button variant="success" icon={<Link2 className="h-4 w-4" />} onClick={() => setLink({ socio })}>
                 Link de pago total
               </Button>
@@ -193,7 +193,7 @@ function Dato({ k, v }: { k: string; v: string | null | undefined }) {
 }
 
 function Historial({ socioId }: { socioId: string }) {
-  const { staff } = useAuth();
+  const { staff, can } = useAuth();
   const toast = useToast();
   const invalidate = useInvalidate();
   const [texto, setTexto] = useState("");
@@ -220,7 +220,7 @@ function Historial({ socioId }: { socioId: string }) {
 
   return (
     <Card>
-      <div className="border-b border-slate-100 p-4">
+      {can("tesoreria", "atencion", "prensa") && <div className="border-b border-slate-100 p-4">
         <Textarea rows={2} placeholder="Registrar una llamada, reunión, reclamo, acuerdo de pago…" value={texto} onChange={(e) => setTexto(e.target.value)} />
         <div className="mt-2 flex justify-end gap-2">
           <Select className="w-auto" value={tipo} onChange={(e) => setTipo(e.target.value as SocioNota["tipo"])}>
@@ -228,7 +228,7 @@ function Historial({ socioId }: { socioId: string }) {
           </Select>
           <Button loading={saving} onClick={agregar}>Agregar</Button>
         </div>
-      </div>
+      </div>}
       {!notas?.length ? (
         <Empty>Sin registros todavía.</Empty>
       ) : (

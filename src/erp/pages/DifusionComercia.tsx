@@ -8,6 +8,7 @@ import { ImagenInput } from "../../components/ImagenInput";
 import { useCategorias } from "../data";
 import { Editor, type Definicion } from "./Contenido";
 import { WhatsappCampanas } from "../components/WhatsappCampanas";
+import { textoEnvio } from "../components/ColaEmails";
 
 /*
  * Difusión del equipo de ComercIA a los socios del CeCIP: novedades en el portal, email y WhatsApp.
@@ -102,8 +103,8 @@ function EmailComercia() {
     setEnviando(true);
     setError(null);
     try {
-      const r = await api<{ enviados: number; errores: number; encolados?: boolean }>("comercia/difundir", { asunto, cuerpo, rubro, categoria_id: categoria || undefined, imagen_url: imagen });
-      toast((r.encolados ? `Se están enviando ${r.enviados} emails.` : `Emails enviados: ${r.enviados}.`) + (r.errores ? ` No se pudieron enviar: ${r.errores}.` : ""), r.enviados ? "ok" : "error");
+      const r = await api<{ enviados: number; pendientes: number; cupo_diario: number | null; errores: number }>("comercia/difundir", { asunto, cuerpo, rubro, categoria_id: categoria || undefined, imagen_url: imagen });
+      toast(textoEnvio(r) + (r.errores ? `\nNo se pudieron enviar: ${r.errores}.` : ""), r.enviados || r.pendientes ? "ok" : "error");
     } catch (e) {
       setError((e as Error).message);
     } finally {

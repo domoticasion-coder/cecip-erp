@@ -1,4 +1,5 @@
 import { HttpError, env, getCaller, handle, json, readJson, requireStaff, supabaseAdmin, type Rol } from "../_lib/core.js";
+import { ROLES_INFO } from "../../shared/roles.js";
 
 /**
  * POST /api/staff/invitar { email, nombre, rol }  (solo administradores)
@@ -12,7 +13,7 @@ export const POST = handle(async (req) => {
   const { email, nombre, rol } = await readJson<{ email?: string; nombre?: string; rol?: Rol }>(req);
   const mail = email?.trim().toLowerCase();
   if (!mail || !nombre?.trim()) throw new HttpError(400, "Completá nombre y email.");
-  if (!rol || !["admin", "tesoreria", "atencion", "comercia"].includes(rol)) throw new HttpError(400, "Rol inválido.");
+  if (!rol || !(rol in ROLES_INFO)) throw new HttpError(400, "Rol inválido.");
 
   const sb = supabaseAdmin();
 

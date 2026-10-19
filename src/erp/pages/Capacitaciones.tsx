@@ -137,7 +137,7 @@ function Cursos() {
     invalidate("capacitaciones", "eventos");
   }
 
-  const puede = can("atencion");
+  const puede = can("atencion", "prensa");
   return (
     <>
       <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -343,7 +343,7 @@ function CursoForm({ value, onClose }: { value: Curso | "nuevo" | null; onClose:
             <div className="mt-2 text-xs text-slate-500">Termina el {fecha(isoLocal(clases[clases.length - 1]))}{f.hora_inicio && ` · ${f.hora_inicio} a ${f.hora_fin || "?"} hs`}</div>
           </div>
 
-          {can("tesoreria", "atencion") && (
+          {can("tesoreria", "atencion", "prensa") && (
             <div className="rounded-lg border border-slate-200 p-3">
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Wallet className="h-4 w-4 text-brand-600" />Honorarios del docente</div>
               <div className="grid grid-cols-2 gap-2">
@@ -488,7 +488,7 @@ function InscriptosCurso({ curso, onClose }: { curso: Curso | null; onClose: () 
         {cfg && !cfg.facturacion_auto && <span className="text-xs text-slate-500">Facturación automática desactivada: usá «Facturar» en cada cobro.</span>}
       </div>
 
-      {can("atencion", "tesoreria") && (
+      {can("atencion", "tesoreria", "prensa") && (
         <div className="mb-4 rounded-lg bg-slate-50 p-3">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><UserPlus className="h-4 w-4" />Inscribir</div>
           <div className="grid gap-2 sm:grid-cols-4">
@@ -536,7 +536,7 @@ function InscriptosCurso({ curso, onClose }: { curso: Curso | null; onClose: () 
                     <div className="text-sm">{i.razon_social || i.empresa || <span className="text-slate-400">—</span>}</div>
                     {i.cuit ? <div>CUIT {formatCuit(i.cuit)}</div> : <div className="text-amber-700">Sin CUIT (consumidor final)</div>}
                     {i.condicion_iva && <div>{i.condicion_iva}</div>}
-                    {can("atencion", "tesoreria") && <button className="text-brand-600 hover:underline" onClick={() => setEditar(i)}>Editar datos</button>}
+                    {can("atencion", "tesoreria", "prensa") && <button className="text-brand-600 hover:underline" onClick={() => setEditar(i)}>Editar datos</button>}
                   </td>
                   <td className="td text-right tabular-nums">{pesos(i.estado_pago === "pagada" ? i.monto_pagado ?? i.monto : i.monto)}</td>
                   <td className="td">
@@ -563,7 +563,7 @@ function InscriptosCurso({ curso, onClose }: { curso: Curso | null; onClose: () 
                         <Undo2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {can("atencion", "tesoreria") && <button onClick={() => quitar(i)} className="ml-1 text-slate-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                    {can("atencion", "tesoreria", "prensa") && <button onClick={() => quitar(i)} className="ml-1 text-slate-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
                   </td>
                 </tr>
               );
@@ -703,7 +703,7 @@ function Docentes() {
     invalidate("capacitaciones");
   }
 
-  const puede = can("atencion", "tesoreria");
+  const puede = can("atencion", "tesoreria", "prensa");
   const lista = (docentes || []).filter((d) => inactivos || d.activo);
   return (
     <>

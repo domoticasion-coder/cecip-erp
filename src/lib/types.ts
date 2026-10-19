@@ -1,11 +1,6 @@
-export type Rol = "admin" | "tesoreria" | "atencion" | "comercia";
+import type { Rol } from "../../shared/roles";
 
-export const ROLES: Record<Rol, string> = {
-  admin: "Administrador",
-  tesoreria: "Tesorería",
-  atencion: "Atención al socio",
-  comercia: "ComercIA (IEC / FactorIA)",
-};
+export { ROLES, ROLES_INFO, type Rol, type Permiso, type Seccion } from "../../shared/roles";
 
 export interface Staff {
   user_id: string;

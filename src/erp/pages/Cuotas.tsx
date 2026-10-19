@@ -11,6 +11,7 @@ import type { CuotaDetalle } from "../../lib/types";
 import { Button, Card, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Stat, useToast } from "../../components/ui";
 import { useCategorias, useConfig, useInvalidate, usePeriodicidades, useSociosMin } from "../data";
 import { CuotasTabla } from "../components/CuotasTabla";
+import { textoEnvio } from "../components/ColaEmails";
 import { NuevaCuotaModal } from "../components/NuevaCuota";
 import { INVALIDAR_COBRO } from "../components/Cobro";
 
@@ -82,8 +83,8 @@ export default function Cuotas() {
     if (!confirm(`¿Enviar recordatorio de pago por email a ${socios.length} socio(s)? El email incluye toda su deuda pendiente y un link de Mercado Pago.`)) return;
     setEnviando(true);
     try {
-      const r = await api<{ enviados: number; errores: { socio: string; error: string }[] }>("cobranzas/recordatorio", { socio_ids: socios });
-      toast(`Recordatorios enviados: ${r.enviados}.` + (r.errores.length ? `\nSin enviar: ${r.errores.map((e) => `${e.socio} (${e.error})`).slice(0, 5).join(", ")}` : ""), r.enviados ? "ok" : "error");
+      const r = await api<{ enviados: number; pendientes: number; errores: { socio: string; error: string }[] }>("cobranzas/recordatorio", { socio_ids: socios });
+      toast(textoEnvio(r, "recordatorios") + (r.errores.length ? `\nSin enviar: ${r.errores.map((e) => `${e.socio} (${e.error})`).slice(0, 5).join(", ")}` : ""), r.enviados || r.pendientes ? "ok" : "error");
       setSel(new Set());
       invalidate("cuotas", "envios");
     } catch (e) {

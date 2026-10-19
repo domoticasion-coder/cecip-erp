@@ -1,6 +1,7 @@
 import { HttpError, getCaller, handle, json, readJson, requireStaff, supabaseAdmin } from "./_lib/core.js";
 import { contextoSocio, preguntarGemini, type Mensaje } from "./_lib/copilot.js";
 import { armarContextoErp, INSTRUCCIONES_ERP } from "../shared/copilotErp.js";
+import { rolCopiloto } from "../shared/roles.js";
 
 /**
  * POST /api/copilot { pregunta, historial?, ambito? }
@@ -20,7 +21,7 @@ export const POST = handle(async (req) => {
     requireStaff(caller);
     // Para traer el detalle de los socios mencionados se mira la pregunta y las últimas del usuario
     const busqueda = [p, ...hist.filter((m) => m.rol === "usuario").slice(-2).map((m) => String(m.texto || ""))].join(" ").slice(0, 2000);
-    const { data, error } = await supabaseAdmin().rpc("datos_copiloto_erp", { p_rol: caller.staff!.rol, p_busqueda: busqueda });
+    const { data, error } = await supabaseAdmin().rpc("datos_copiloto_erp", { p_rol: rolCopiloto(caller.staff!.rol), p_busqueda: busqueda });
     if (error) throw new HttpError(500, /datos_copiloto_erp/.test(error.message) ? "Falta ejecutar la migración 009_copiloto_erp.sql en Supabase." : error.message);
     const contexto = armarContextoErp(data, { nombre: caller.staff!.nombre, rol: caller.staff!.rol });
     return json({ respuesta: await preguntarGemini(contexto, hist, p, INSTRUCCIONES_ERP) });

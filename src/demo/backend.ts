@@ -20,6 +20,11 @@ export const esCheckoutDemo = esCheckout;
 export type DemoLogin = { app: "erp" | "portal"; etiqueta: string; email: string; password: string };
 export const demoLogins: DemoLogin[] = [
   { app: "erp", etiqueta: "Administrador", email: DEMO_USERS.admin.email, password: DEMO_PASSWORD },
+  { app: "erp", etiqueta: "Administración", email: DEMO_USERS.administracion.email, password: DEMO_PASSWORD },
+  { app: "erp", etiqueta: "Prensa y capacitación", email: DEMO_USERS.prensa.email, password: DEMO_PASSWORD },
+  { app: "erp", etiqueta: "Presidente", email: DEMO_USERS.presidente.email, password: DEMO_PASSWORD },
+  { app: "erp", etiqueta: "Prosecretario", email: DEMO_USERS.prosecretario.email, password: DEMO_PASSWORD },
+  { app: "erp", etiqueta: "Comisión directiva", email: DEMO_USERS.comision.email, password: DEMO_PASSWORD },
   { app: "erp", etiqueta: "Tesorería", email: DEMO_USERS.tesoreria.email, password: DEMO_PASSWORD },
   { app: "erp", etiqueta: "Atención al socio", email: DEMO_USERS.atencion.email, password: DEMO_PASSWORD },
   { app: "erp", etiqueta: "ComercIA (IEC / FactorIA)", email: DEMO_USERS.comercia.email, password: DEMO_PASSWORD },

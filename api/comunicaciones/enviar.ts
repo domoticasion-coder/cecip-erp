@@ -1,17 +1,17 @@
 import { HttpError, env, getCaller, handle, json, pesos, readJson, requireStaff, supabaseAdmin } from "../_lib/core.js";
 import { emailLayout, emailValido, sendEmails, textToHtml } from "../_lib/email.js";
-import { encolarEmails } from "../_lib/integraciones.js";
+import { encolarEmails } from "../_lib/colaEmails.js";
 
 /**
  * POST /api/comunicaciones/enviar { socio_ids, asunto, cuerpo, comunicado_id?, imagen_url? }
- * Envío masivo de emails. Variables disponibles en asunto y cuerpo: {{nombre}}, {{deuda}}.
+ * Envío masivo de emails (pasa por la cola con cupo diario). Variables: {{nombre}}, {{deuda}}.
  *
  * POST /api/comunicaciones/enviar { para, asunto, cuerpo, imagen_url? }
  * Email individual a una o más direcciones escritas a mano (separadas por coma), sin socio asociado.
  */
 export const POST = handle(async (req) => {
   const caller = await getCaller(req);
-  requireStaff(caller, ["atencion", "tesoreria"]);
+  requireStaff(caller, ["atencion", "tesoreria", "prensa"]);
 
   const body = await readJson<{ socio_ids?: string[]; para?: string; asunto?: string; cuerpo?: string; comunicado_id?: string; imagen_url?: string | null }>(req);
   const asunto = body.asunto?.trim();
@@ -50,55 +50,21 @@ export const POST = handle(async (req) => {
   }));
 
   const tipo = body.comunicado_id ? "comunicado" : "manual";
-  const sinEmailLogs = sinEmail.map((s) => ({
-    socio_id: s.id, comunicado_id: body.comunicado_id || null, canal: "email", tipo, asunto, destinatario: null,
-    estado: "error", error: "Socio sin email válido", created_by: caller.userId,
-  }));
-  const erroresSinEmail = sinEmail.map((s) => ({ socio: s.nombre_comercial || s.razon_social, error: "Sin email válido" }));
-
-  // Envío masivo por n8n (si está configurado): se encola la lista y los resultados llegan después
-  const encolado = await encolarEmails(new URL(req.url).origin, mensajes.map((m, i) => ({
-    ...m, meta: { socio_id: conEmail[i].id, comunicado_id: body.comunicado_id || null, tipo, created_by: caller.userId },
-  })));
-  if (encolado) {
-    if (sinEmailLogs.length) await sb.from("envios").insert(sinEmailLogs);
-    return json({ enviados: encolado.encolados, encolados: true, errores: erroresSinEmail });
+  if (sinEmail.length) {
+    await sb.from("envios").insert(sinEmail.map((s) => ({
+      socio_id: s.id, comunicado_id: body.comunicado_id || null, canal: "email", tipo, asunto, destinatario: null,
+      estado: "error", error: "Socio sin email válido", created_by: caller.userId,
+    })));
   }
 
-  const resultados = mensajes.length ? await sendEmails(mensajes) : [];
-
-  const logs = [
-    ...resultados.map((r, i) => ({
-      socio_id: conEmail[i].id,
-      comunicado_id: body.comunicado_id || null,
-      canal: "email",
-      tipo: body.comunicado_id ? "comunicado" : "manual",
-      asunto: mensajes[i].subject,
-      destinatario: r.to,
-      estado: r.ok ? "enviado" : "error",
-      error: r.error || null,
-      created_by: caller.userId,
-    })),
-    ...sinEmail.map((s) => ({
-      socio_id: s.id,
-      comunicado_id: body.comunicado_id || null,
-      canal: "email",
-      tipo: body.comunicado_id ? "comunicado" : "manual",
-      asunto,
-      destinatario: null,
-      estado: "error",
-      error: "Socio sin email válido",
-      created_by: caller.userId,
-    })),
-  ];
-  if (logs.length) await sb.from("envios").insert(logs);
+  // Se encola todo: sale ya lo que entra en el cupo diario y el resto en los días siguientes
+  const r = await encolarEmails(mensajes.map((m, i) => ({
+    ...m, tipo, socio_id: conEmail[i].id, comunicado_id: body.comunicado_id || null,
+  })), caller.userId);
 
   return json({
-    enviados: resultados.filter((r) => r.ok).length,
-    errores: [
-      ...resultados.filter((r) => !r.ok).map((r) => ({ socio: r.to, error: r.error })),
-      ...sinEmail.map((s) => ({ socio: s.nombre_comercial || s.razon_social, error: "Sin email válido" })),
-    ],
+    ...r,
+    errores: [...r.errores, ...sinEmail.map((s) => ({ socio: s.nombre_comercial || s.razon_social, error: "Sin email válido" }))],
   });
 });
 

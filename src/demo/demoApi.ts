@@ -8,6 +8,7 @@ import { lit, rpc, sqlComo, usuarioActual } from "./demoClient";
 import type { Identidad } from "./demoDb";
 import { armarContexto } from "../../shared/copilotContexto";
 import { armarContextoErp } from "../../shared/copilotErp";
+import { rolCopiloto, tienePermiso } from "../../shared/roles";
 
 const SERVICIO: Identidad = { userId: null, role: "service_role" };
 const SUPER: Identidad = { userId: null, role: "postgres" };
@@ -19,6 +20,31 @@ async function q(who: Identidad, sql: string) {
 }
 
 const ids = (arr?: string[]) => `(${(arr || []).map(lit).join(",") || "null"})`;
+
+// Cola de emails: plan gratis de Resend (100 por día) menos 10 reservados para envíos individuales
+const CUPO_COLA_DEMO = 90;
+
+async function usadosHoyDemo(): Promise<number> {
+  const [r] = await q(SERVICIO, "select coalesce(sum(1 + copias), 0)::int as n from envios where canal = 'email' and estado = 'enviado' and created_at >= date_trunc('day', now())");
+  return r.n;
+}
+
+/** Envía (simula) los pendientes de la cola que entren en el cupo de hoy */
+async function procesarColaDemo() {
+  const cupo = Math.max(0, CUPO_COLA_DEMO - (await usadosHoyDemo()));
+  let enviados = 0;
+  if (cupo > 0) {
+    const filas = await q(SERVICIO, `update email_cola set estado = 'enviado', procesado_at = now()
+      where id in (select id from email_cola where estado = 'pendiente' order by created_at, id limit ${cupo}) returning *`);
+    if (filas.length) {
+      await q(SERVICIO, `insert into envios (socio_id, comunicado_id, canal, tipo, asunto, destinatario, created_by) values ${filas
+        .map((f: any) => `(${lit(f.socio_id)}, ${lit(f.comunicado_id)}, 'email', ${lit(f.tipo)}, ${lit(f.asunto + " (DEMO: no enviado)")}, ${lit(f.destinatario)}, ${lit(f.created_by)})`).join(", ")}`);
+    }
+    enviados = filas.length;
+  }
+  const [p] = await q(SERVICIO, "select count(*)::int as n from email_cola where estado = 'pendiente'");
+  return { enviados, errores: 0, pendientes: p.n, cupo_restante: Math.max(0, cupo - enviados) };
+}
 
 export async function demoApi(path: string, body: any = {}): Promise<any> {
   await new Promise((r) => setTimeout(r, 350)); // simula la demora de red
@@ -70,11 +96,30 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
       }
       const socios = await q(SERVICIO, `select id, email, coalesce(nombre_comercial, razon_social) as nombre from socios where id in ${ids(body.socio_ids)}`);
       const con = socios.filter((s: any) => s.email);
+      // Igual que en producción: todo pasa por la cola con cupo diario
+      const [{ lote }] = await q(SERVICIO, "select gen_random_uuid() as lote");
       if (con.length) {
-        await q(SERVICIO, `insert into envios (socio_id, comunicado_id, canal, tipo, asunto, destinatario, created_by) values ${con
-          .map((s: any) => `(${lit(s.id)}, ${lit(body.comunicado_id || null)}, 'email', ${lit(body.comunicado_id ? "comunicado" : "manual")}, ${lit(body.asunto + " (DEMO: no enviado)")}, ${lit(s.email)}, ${lit(yo.id)})`).join(", ")}`);
+        await q(SERVICIO, `insert into email_cola (lote_id, socio_id, comunicado_id, tipo, destinatario, asunto, texto, html, created_by, created_at) values ${con
+          .map((s: any, i: number) => `(${lit(lote)}, ${lit(s.id)}, ${lit(body.comunicado_id || null)}, ${lit(body.comunicado_id ? "comunicado" : "manual")}, ${lit(s.email)},
+            ${lit(body.asunto)}, ${lit(body.cuerpo)}, '<p>demo</p>', ${lit(yo.id)}, now() + interval '${i} milliseconds')`).join(", ")}`);
+        await procesarColaDemo();
       }
-      return { enviados: con.length, errores: socios.filter((s: any) => !s.email).map((s: any) => ({ socio: s.nombre, error: "Sin email válido" })) };
+      const [r] = await q(SERVICIO, `select count(*) filter (where estado = 'enviado')::int as enviados, count(*) filter (where estado = 'pendiente')::int as pendientes from email_cola where lote_id = ${lit(lote)}`);
+      return { ...r, cupo_diario: CUPO_COLA_DEMO, errores: socios.filter((s: any) => !s.email).map((s: any) => ({ socio: s.nombre, error: "Sin email válido" })) };
+    }
+
+    case "integraciones/cola-emails": {
+      const usados = await usadosHoyDemo();
+      return { limite_diario: 100, cupo_cola: CUPO_COLA_DEMO, usados_hoy: usados, cupo_restante: Math.max(0, CUPO_COLA_DEMO - usados) };
+    }
+
+    case "integraciones/cola-emails-procesar":
+      return procesarColaDemo();
+
+    case "integraciones/cola-emails-cancelar": {
+      const filas = await q(SERVICIO, `update email_cola set estado = 'cancelado', procesado_at = now() where estado = 'pendiente'
+        ${body.lote_id ? `and lote_id = ${lit(body.lote_id)}` : ""} returning id`);
+      return { cancelados: filas.length };
     }
 
     case "accesos/resolver": {
@@ -120,7 +165,7 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
 
     case "integraciones/facturas-procesar": {
       const [st] = await q(comoYo, "select rol from staff where user_id = auth.uid()");
-      if (!["tesoreria", "admin"].includes(st?.rol)) throw new Error("Tu rol no tiene permiso para esta acción.");
+      if (!tienePermiso(st?.rol, ["tesoreria"])) throw new Error("Tu rol no tiene permiso para esta acción.");
       let sql = "select id, receptor_cuit, punto_venta, tipo from facturas";
       sql += body.ids?.length ? ` where id in ${ids(body.ids)} and estado in ('en_cola', 'error')` : " where estado = 'en_cola'";
       const facturas = await q(SERVICIO, sql + " order by created_at limit 40");
@@ -221,7 +266,7 @@ async function copilotoErp(comoYo: Identidad, body: any): Promise<string> {
   if (!st) throw new Error("Acceso solo para el personal de CeCIP.");
   const historial: { rol: string; texto: string }[] = Array.isArray(body.historial) ? body.historial : [];
   const busqueda = [body.pregunta, ...historial.filter((m) => m.rol === "usuario").slice(-2).map((m) => m.texto)].join(" ");
-  const [fila] = await q(SUPER, `select datos_copiloto_erp(${lit(st.rol)}, ${lit(busqueda)}) as d`);
+  const [fila] = await q(SUPER, `select datos_copiloto_erp(${lit(rolCopiloto(st.rol))}, ${lit(busqueda)}) as d`);
   const contexto = armarContextoErp(fila.d, st);
   const res = await fetch("/dev-api/copilot", {
     method: "POST",

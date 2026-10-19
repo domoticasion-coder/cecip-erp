@@ -1,7 +1,8 @@
 import { HttpError, getCaller, handle, json, readJson, requireStaff } from "../_lib/core.js";
 import {
-  guardarMovimientosBanco, n8nConfig, procesarFacturas, registrarResultadoFactura, registrarResultadosEnvio, sincronizarBanco, verificarSecreto,
+  guardarMovimientosBanco, n8nConfig, procesarFacturas, registrarResultadoFactura, sincronizarBanco, verificarSecreto,
 } from "../_lib/integraciones.js";
+import { cancelarPendientes, cupoRestante, limitesDiarios, procesarCola, usadosHoy } from "../_lib/colaEmails.js";
 
 /**
  * Un solo endpoint para las integraciones con n8n (así no se suman funciones en Vercel):
@@ -10,15 +11,22 @@ import {
  *   GET  /api/integraciones/estado              -> qué está configurado
  *   POST /api/integraciones/facturas-procesar   { ids? }  -> envía a n8n las facturas en cola
  *   POST /api/integraciones/banco-sincronizar   { desde, hasta } -> pide a n8n los movimientos
+ *   GET  /api/integraciones/cola-emails         -> cupo diario de emails y lo que queda en cola
+ *   POST /api/integraciones/cola-emails-procesar          -> envía ahora lo que entre en el cupo de hoy
+ *   POST /api/integraciones/cola-emails-cancelar { lote_id? } -> cancela lo que todavía no salió
  *
  *  Desde n8n (header x-cecip-secret = N8N_SECRET):
  *   POST /api/integraciones/facturas-callback   { factura_id, cae, cae_vencimiento, numero, pdf_url } | { factura_id, error }
  *   POST /api/integraciones/banco-movimientos   { banco?, movimientos: [{ id, fecha, descripcion, monto, saldo, referencia, ... }] }
- *   POST /api/integraciones/envios-resultado    { resultados: [{ to, subject, ok, error?, meta }] }
  */
 const accion = (req: Request) => new URL(req.url).pathname.split("/").filter(Boolean).pop() || "";
 
 export const GET = handle(async (req) => {
+  if (accion(req) === "cola-emails") {
+    requireStaff(await getCaller(req), ["atencion", "tesoreria", "prensa"]);
+    const { limite, cola } = limitesDiarios();
+    return json({ limite_diario: limite, cupo_cola: cola, usados_hoy: await usadosHoy(), cupo_restante: await cupoRestante() });
+  }
   if (accion(req) !== "estado") throw new HttpError(404, "Acción inexistente.");
   const caller = await getCaller(req);
   requireStaff(caller, ["tesoreria"]);
@@ -27,7 +35,6 @@ export const GET = handle(async (req) => {
   return json({
     facturas: Boolean(cfg.facturas),
     banco: Boolean(cfg.banco),
-    envios: Boolean(cfg.envios),
     secreto: Boolean(cfg.secreto),
     callback_facturas: `${origin}/api/integraciones/facturas-callback`,
     endpoint_banco: `${origin}/api/integraciones/banco-movimientos`,
@@ -60,9 +67,14 @@ export const POST = handle(async (req) => {
       const body = await readJson<{ banco?: string; movimientos?: unknown[] }>(req);
       return json(await guardarMovimientosBanco((body.movimientos || []) as any[], body.banco || "Santander"));
     }
-    case "envios-resultado": {
-      verificarSecreto(req);
-      return json(await registrarResultadosEnvio(await readJson(req)));
+    case "cola-emails-procesar": {
+      requireStaff(await getCaller(req), ["atencion", "tesoreria", "prensa"]);
+      return json(await procesarCola());
+    }
+    case "cola-emails-cancelar": {
+      requireStaff(await getCaller(req), ["atencion", "tesoreria", "prensa"]);
+      const body = await readJson<{ lote_id?: string }>(req).catch(() => ({} as { lote_id?: string }));
+      return json({ cancelados: await cancelarPendientes(body.lote_id) });
     }
     default:
       throw new HttpError(404, "Acción inexistente.");

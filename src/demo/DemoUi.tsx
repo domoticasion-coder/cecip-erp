@@ -8,6 +8,11 @@ import { DEMO_USERS, reiniciarDemo } from "./demoDb";
 import { demoEntrarComo } from "./demoClient";
 import { demoAcreditarPago, demoResumenPago } from "./demoApi";
 
+const ETIQUETAS_DEMO = {
+  admin: "Admin", administracion: "Administración", prensa: "Prensa y capac.", presidente: "Presidente",
+  prosecretario: "Prosecretario", comision: "Comisión directiva", tesoreria: "Tesorería", atencion: "Atención", comercia: "ComercIA",
+} as const;
+
 /** Barra flotante del modo demo: aviso + cambio de rol (ERP) + accesos rápidos */
 export function DemoBanner() {
   const { session } = useAuth();
@@ -35,10 +40,10 @@ export function DemoBanner() {
         <>
           <div className="mb-1 font-semibold">Ver el ERP como:</div>
           <div className="grid grid-cols-2 gap-1">
-            {(["admin", "tesoreria", "atencion", "comercia"] as const).map((k) => (
+            {(["admin", "administracion", "prensa", "presidente", "prosecretario", "comision", "tesoreria", "atencion", "comercia"] as const).map((k) => (
               <button key={k} onClick={() => demoEntrarComo(k)}
                 className={cx("rounded-md border px-1.5 py-1", actual === k ? "border-amber-600 bg-amber-200 font-semibold" : "border-amber-300 bg-white hover:bg-amber-100")}>
-                {k === "admin" ? "Admin" : k === "tesoreria" ? "Tesorería" : k === "atencion" ? "Atención" : "ComercIA"}
+                {ETIQUETAS_DEMO[k]}
               </button>
             ))}
           </div>

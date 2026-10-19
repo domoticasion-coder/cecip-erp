@@ -178,7 +178,7 @@ export default function Socios() {
         {sel.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-b border-brand-100 bg-brand-50 px-3 py-2 text-sm">
             <b>{sel.size} seleccionados</b>
-            <Button size="sm" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} onClick={() => setEmail(true)}>Enviar email</Button>
+            {can("atencion", "tesoreria", "prensa") && <Button size="sm" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} onClick={() => setEmail(true)}>Enviar email</Button>}
             {puedeEditar && (
               <>
                 <Select className="w-auto py-1 text-xs" value={bulkCat} onChange={(e) => setBulkCat(e.target.value)}>

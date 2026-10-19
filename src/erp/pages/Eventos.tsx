@@ -44,7 +44,7 @@ export default function Eventos() {
     invalidate("eventos");
   }
 
-  const puede = can("atencion");
+  const puede = can("atencion", "prensa");
 
   return (
     <>
@@ -280,7 +280,7 @@ function InscriptosModal({ evento, onClose }: { evento: Evento | null; onClose: 
           <Button onClick={onClose}>Cerrar</Button>
         </>
       }>
-      {can("atencion") && (
+      {can("atencion", "prensa") && (
         <div className="mb-4 grid gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-4">
           <Select value={socio} onChange={(e) => setSocio(e.target.value)}>
             <option value="">Asistente externo</option>

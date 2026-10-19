@@ -5,7 +5,7 @@ import { supabase, traducirError, unwrap } from "../../lib/supabase";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { pesos } from "../../lib/format";
-import { ROLES, type Configuracion as Config, type Rol, type Staff } from "../../lib/types";
+import { ROLES_INFO, type Configuracion as Config, type Rol, type Staff } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Table, Tabs, useToast } from "../../components/ui";
 import { useCategorias, useConfig, useCuentas, useInvalidate, usePeriodicidades } from "../data";
 
@@ -336,8 +336,9 @@ function Personal() {
                 <td className="td">{s.nombre}<div className="text-xs text-slate-500">{s.email}</div></td>
                 <td className="td">
                   <Select className="w-auto" value={s.rol} onChange={(e) => actualizar(s, { rol: e.target.value as Rol })}>
-                    {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    {Object.entries(ROLES_INFO).filter(([k, v]) => v.vigente || k === s.rol).map(([k, v]) => <option key={k} value={k}>{v.nombre}</option>)}
                   </Select>
+                  <div className="mt-1 max-w-xs text-xs text-slate-500">{ROLES_INFO[s.rol]?.descripcion}</div>
                 </td>
                 <td className="td">{s.activo ? <Badge tone="green">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
                 <td className="td text-right">
@@ -363,7 +364,7 @@ function InvitarModal({ open, onClose }: { open: boolean; onClose: () => void })
   const invalidate = useInvalidate();
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
-  const [rol, setRol] = useState<Rol>("atencion");
+  const [rol, setRol] = useState<Rol>("administracion");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -391,9 +392,10 @@ function InvitarModal({ open, onClose }: { open: boolean; onClose: () => void })
         <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Rol">
           <Select value={rol} onChange={(e) => setRol(e.target.value as Rol)}>
-            {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.entries(ROLES_INFO).filter(([, v]) => v.vigente).map(([k, v]) => <option key={k} value={k}>{v.nombre}</option>)}
           </Select>
         </Field>
+        <p className="text-xs text-slate-500">{ROLES_INFO[rol]?.descripcion}</p>
         <ErrorBox error={error} />
       </div>
     </Modal>

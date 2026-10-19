@@ -8,7 +8,7 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { PORTAL_URL } from "../lib/appMode";
-import { ROLES, type Rol } from "../lib/types";
+import { ROLES, type Seccion } from "../lib/types";
 import { AuthLayout, DefinirClave, ForgotForm, LoginForm } from "../components/AuthScreens";
 import { Button, Loading, cx } from "../components/ui";
 import Recibo from "../components/Recibo";
@@ -32,10 +32,9 @@ import Capacitaciones from "./pages/Capacitaciones";
 import Copiloto from "./pages/Copiloto";
 
 interface NavItem {
-  to: string;
+  to: Seccion; // quién la ve: ver shared/roles.ts
   label: string;
   icon: typeof Users;
-  roles?: Rol[]; // undefined = todo el personal
   badge?: "accesos" | "comercia" | "facturas";
   ia?: boolean; // se marca como novedad
 }
@@ -46,17 +45,17 @@ const NAV: NavItem[] = [
   { to: "/socios", label: "Socios", icon: Users },
   { to: "/cuotas", label: "Cuotas", icon: Receipt },
   { to: "/cobranzas", label: "Cobranzas y morosos", icon: AlertCircle },
-  { to: "/tesoreria", label: "Tesorería y banco", icon: Wallet, roles: ["tesoreria"] },
-  { to: "/facturacion", label: "Facturación", icon: FileText, roles: ["tesoreria"], badge: "facturas" },
-  { to: "/alquileres", label: "Alquileres", icon: Building2, roles: ["tesoreria"] },
+  { to: "/tesoreria", label: "Tesorería y banco", icon: Wallet },
+  { to: "/facturacion", label: "Facturación", icon: FileText, badge: "facturas" },
+  { to: "/alquileres", label: "Alquileres", icon: Building2 },
   { to: "/comunicacion", label: "Comunicación", icon: Megaphone },
   { to: "/eventos", label: "Eventos", icon: CalendarDays },
   { to: "/capacitaciones", label: "Capacitaciones", icon: GraduationCap },
   { to: "/comercia", label: "ComercIA", icon: Sparkles, badge: "comercia" },
-  { to: "/contenido", label: "Contenido del portal", icon: LayoutTemplate, roles: ["atencion"] },
-  { to: "/difusion", label: "Difusión ComercIA", icon: Send, roles: ["comercia"] },
-  { to: "/accesos", label: "Accesos al portal", icon: UserCheck, roles: ["atencion", "tesoreria"], badge: "accesos" },
-  { to: "/configuracion", label: "Configuración", icon: Settings, roles: [] },
+  { to: "/contenido", label: "Contenido del portal", icon: LayoutTemplate },
+  { to: "/difusion", label: "Difusión ComercIA", icon: Send },
+  { to: "/accesos", label: "Accesos al portal", icon: UserCheck, badge: "accesos" },
+  { to: "/configuracion", label: "Configuración", icon: Settings },
 ];
 
 export default function ErpApp() {
@@ -98,7 +97,7 @@ export default function ErpApp() {
 }
 
 function Shell() {
-  const { staff, signOut, can } = useAuth();
+  const { staff, signOut, ve } = useAuth();
   const [open, setOpen] = useState(false);
   const location = useLocation();
 
@@ -116,9 +115,7 @@ function Shell() {
   });
 
   const esComercia = staff?.rol === "comercia";
-  const items = esComercia
-    ? NAV.filter((n) => ["/copiloto", "/comercia", "/contenido", "/difusion"].includes(n.to)).map((n) => (n.to === "/contenido" ? { ...n, label: "Contenido ComercIA" } : n))
-    : NAV.filter((n) => !n.roles || can(...n.roles));
+  const items = NAV.filter((n) => ve(n.to)).map((n) => (esComercia && n.to === "/contenido" ? { ...n, label: "Contenido ComercIA" } : n));
   const isPrint = location.pathname.startsWith("/recibo/");
   const esChat = location.pathname === "/copiloto";
 
@@ -207,23 +204,23 @@ function Shell() {
             </Routes>
           ) : (
             <Routes>
-              <Route path="/" element={<Inicio />} />
-              <Route path="/copiloto" element={<Copiloto />} />
-              <Route path="/socios" element={<Socios />} />
-              <Route path="/socios/:id" element={<SocioDetalle />} />
-              <Route path="/cuotas" element={<Cuotas />} />
-              <Route path="/cobranzas" element={<Cobranzas />} />
-              {can("tesoreria") && <Route path="/tesoreria" element={<Tesoreria />} />}
-              {can("tesoreria") && <Route path="/facturacion" element={<Facturacion />} />}
-              {can("tesoreria") && <Route path="/alquileres" element={<Alquileres />} />}
-              <Route path="/comunicacion" element={<Comunicacion />} />
-              <Route path="/eventos" element={<Eventos />} />
-              <Route path="/capacitaciones" element={<Capacitaciones />} />
-              <Route path="/comercia" element={<Comercia />} />
-              {can("atencion") && <Route path="/contenido" element={<Contenido />} />}
-              {can("comercia") && <Route path="/difusion" element={<DifusionComercia />} />}
-              {can("atencion", "tesoreria") && <Route path="/accesos" element={<Accesos />} />}
-              {can() && <Route path="/configuracion" element={<Configuracion />} />}
+              {ve("/") && <Route path="/" element={<Inicio />} />}
+              {ve("/copiloto") && <Route path="/copiloto" element={<Copiloto />} />}
+              {ve("/socios") && <Route path="/socios" element={<Socios />} />}
+              {ve("/socios") && <Route path="/socios/:id" element={<SocioDetalle />} />}
+              {ve("/cuotas") && <Route path="/cuotas" element={<Cuotas />} />}
+              {ve("/cobranzas") && <Route path="/cobranzas" element={<Cobranzas />} />}
+              {ve("/tesoreria") && <Route path="/tesoreria" element={<Tesoreria />} />}
+              {ve("/facturacion") && <Route path="/facturacion" element={<Facturacion />} />}
+              {ve("/alquileres") && <Route path="/alquileres" element={<Alquileres />} />}
+              {ve("/comunicacion") && <Route path="/comunicacion" element={<Comunicacion />} />}
+              {ve("/eventos") && <Route path="/eventos" element={<Eventos />} />}
+              {ve("/capacitaciones") && <Route path="/capacitaciones" element={<Capacitaciones />} />}
+              {ve("/comercia") && <Route path="/comercia" element={<Comercia />} />}
+              {ve("/contenido") && <Route path="/contenido" element={<Contenido />} />}
+              {ve("/difusion") && <Route path="/difusion" element={<DifusionComercia />} />}
+              {ve("/accesos") && <Route path="/accesos" element={<Accesos />} />}
+              {ve("/configuracion") && <Route path="/configuracion" element={<Configuracion />} />}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           )}
