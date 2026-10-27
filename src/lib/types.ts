@@ -90,6 +90,9 @@ export interface Socio {
   contacto_nombre: string | null;
   email: string | null;
   whatsapp: string | null;
+  /** Otros WhatsApp del comercio (la IA reconoce al socio desde cualquiera) */
+  whatsapp_2?: string | null;
+  whatsapp_3?: string | null;
   telefono: string | null;
   direccion: string | null;
   localidad: string | null;

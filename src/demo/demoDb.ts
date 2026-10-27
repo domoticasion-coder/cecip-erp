@@ -15,6 +15,7 @@ import colaEmails011 from "../../supabase/migrations/011_cola_emails.sql?raw";
 import roles012 from "../../supabase/migrations/012_roles.sql?raw";
 import valores013 from "../../supabase/migrations/013_valores_anteriores_y_retenciones.sql?raw";
 import canales014 from "../../supabase/migrations/014_canales.sql?raw";
+import whatsapp015 from "../../supabase/migrations/015_whatsapp_socios.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
@@ -388,7 +389,7 @@ end $$;
 
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v20";
+const IDB_NAME = "cecip-demo-v21";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -418,6 +419,7 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(valores013);
         await db.exec(canales014);
         await db.exec(SEED_014);
+        await db.exec(whatsapp015);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;

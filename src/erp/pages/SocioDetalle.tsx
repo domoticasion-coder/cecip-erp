@@ -178,7 +178,7 @@ export default function SocioDetalle() {
             <Dato k="Contacto" v={socio.contacto_nombre} />
             <Dato k="Email" v={socio.email} />
             <Dato k="Otros emails" v={socio.emails_extra} />
-            <Dato k="WhatsApp" v={socio.whatsapp} />
+            <Dato k="WhatsApp" v={[socio.whatsapp, socio.whatsapp_2, socio.whatsapp_3].filter(Boolean).join(" · ") || null} />
             <Dato k="Teléfono" v={socio.telefono} />
             <Dato k="Dirección" v={[socio.direccion, socio.localidad].filter(Boolean).join(", ")} />
             <Dato k="Fecha de alta" v={fecha(socio.fecha_alta)} />

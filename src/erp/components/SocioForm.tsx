@@ -9,7 +9,7 @@ type FormState = Omit<Socio, "id" | "created_at" | "numero_socio"> & { numero_so
 
 const vacio: FormState = {
   numero_socio: "", razon_social: "", nombre_comercial: "", cuit: "", rubro: "", categoria_id: null, estado: "activo",
-  contacto_nombre: "", email: "", whatsapp: "", telefono: "", direccion: "", localidad: "Paraná", fecha_alta: hoyISO(), observaciones: "", whatsapp_baja: false,
+  contacto_nombre: "", email: "", whatsapp: "", whatsapp_2: "", whatsapp_3: "", telefono: "", direccion: "", localidad: "Paraná", fecha_alta: hoyISO(), observaciones: "", whatsapp_baja: false,
   periodicidad: "mensual", condicion_iva: null, emails_extra: "", seguimiento: null, facturar_auto: true,
 };
 
@@ -57,6 +57,8 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
       contacto_nombre: f.contacto_nombre?.trim() || null,
       email: f.email?.trim().toLowerCase() || null,
       whatsapp: f.whatsapp?.trim() || null,
+      whatsapp_2: f.whatsapp_2?.trim() || null,
+      whatsapp_3: f.whatsapp_3?.trim() || null,
       telefono: f.telefono?.trim() || null,
       direccion: f.direccion?.trim() || null,
       localidad: f.localidad?.trim() || null,
@@ -158,8 +160,14 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
         <Field label="Otros emails" hint="Separados por coma (reciben copia de los avisos).">
           <Input value={f.emails_extra || ""} onChange={(e) => set("emails_extra", e.target.value)} />
         </Field>
-        <Field label="WhatsApp" hint="Con característica, ej: 343 4551234">
+        <Field label="WhatsApp principal" hint="Con característica, ej: 343 4551234. A este número salen las difusiones.">
           <Input value={f.whatsapp || ""} onChange={(e) => set("whatsapp", e.target.value)} />
+        </Field>
+        <Field label="WhatsApp 2" hint="Opcional: otro número desde el que escribe el comercio.">
+          <Input value={f.whatsapp_2 || ""} onChange={(e) => set("whatsapp_2", e.target.value)} />
+        </Field>
+        <Field label="WhatsApp 3" hint="Opcional. La IA reconoce al socio desde cualquiera de sus números.">
+          <Input value={f.whatsapp_3 || ""} onChange={(e) => set("whatsapp_3", e.target.value)} />
         </Field>
         <div className="flex items-end pb-2">
           <Checkbox checked={!!f.whatsapp_baja} onChange={(v) => set("whatsapp_baja", v)} label="No enviarle difusiones por WhatsApp (pidió BAJA)" />
