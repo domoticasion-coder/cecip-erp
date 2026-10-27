@@ -70,6 +70,7 @@ export default function ErpApp() {
   if (!session) {
     return (
       <AuthLayout
+        intro
         title={forgot ? "Recuperar contraseña" : "ERP administrativo"}
         subtitle={forgot ? undefined : "Ingreso exclusivo para el personal de CeCIP Paraná"}
         footer={<a href={PORTAL_URL} className="hover:underline">¿Sos socio? Ingresá al Portal de Socios →</a>}

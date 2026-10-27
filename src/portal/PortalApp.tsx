@@ -51,6 +51,7 @@ export default function PortalApp() {
     }
     return (
       <AuthLayout
+        intro
         title={vista === "olvido" ? "Recuperar contraseña" : "Portal de Socios"}
         subtitle={vista === "olvido" ? undefined : "Centro Comercial e Industrial de Paraná"}
         footer={vista === "login" && <button onClick={() => setVista("registro")} className="hover:underline">¿Primera vez? <b>Creá tu cuenta de socio</b></button>}

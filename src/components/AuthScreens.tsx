@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { ThemeToggle } from "../lib/theme";
 import { demoLogins } from "@backend";
 import { Button, ErrorBox, Field, Input } from "./ui";
+import { IntroCecip } from "./IntroCecip";
 
 const PRESENTACION = {
   erp: {
@@ -21,10 +22,16 @@ const PRESENTACION = {
   },
 };
 
-export function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
+export function AuthLayout({ title, subtitle, children, footer, intro = false }: {
+  title: string; subtitle?: string; children: ReactNode; footer?: ReactNode;
+  /** Muestra la animación de bienvenida del CeCIP cada vez que se abre esta pantalla (el ingreso) */
+  intro?: boolean;
+}) {
   const p = PRESENTACION[appMode.app];
+  const [mostrarIntro, setMostrarIntro] = useState(intro);
   return (
     <div className="grid min-h-full lg:grid-cols-[1.1fr_1fr]">
+      {mostrarIntro && <IntroCecip onFin={() => setMostrarIntro(false)} />}
       {/* Panel de marca (escritorio) */}
       <aside className="relative hidden overflow-hidden bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/5" />
