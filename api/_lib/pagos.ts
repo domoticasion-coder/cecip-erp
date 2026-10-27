@@ -107,7 +107,14 @@ export async function crearLinkPago(socioId: string, cuotaIds: string[] | null, 
   }
   if (cuotas[0].socio_email) preference.payer = { email: cuotas[0].socio_email };
 
-  const pref = await mpFetch("/checkout/preferences", { method: "POST", body: JSON.stringify(preference) });
+  let pref: any;
+  try {
+    pref = await mpFetch("/checkout/preferences", { method: "POST", body: JSON.stringify(preference) });
+  } catch (err) {
+    // Si Mercado Pago no respondió (o no está configurado) no queda un link sin URL registrado
+    await sb.from("links_pago").delete().eq("id", link.id);
+    throw err;
+  }
 
   await sb.from("links_pago").update({ mp_preference_id: pref.id, url: pref.init_point }).eq("id", link.id);
   return { id: link.id, url: pref.init_point, total, cuotas: items.length };

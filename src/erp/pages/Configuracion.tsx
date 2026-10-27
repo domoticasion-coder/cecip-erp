@@ -22,7 +22,7 @@ export default function Configuracion() {
         { value: "cuentas", label: "Cuentas de tesorería" },
         { value: "personal", label: "Personal" },
       ]} />
-      {tab === "cuotas" && <><Categorias /><div className="h-5" /><Cobranza /></>}
+      {tab === "cuotas" && <><Categorias /><div className="h-5" /><ValoresAnteriores /><div className="h-5" /><Cobranza /></>}
       {tab === "institucion" && <Institucion />}
       {tab === "cuentas" && <Cuentas />}
       {tab === "personal" && <Personal />}
@@ -41,6 +41,8 @@ function useGuardarConfig() {
   };
 }
 
+const num = (v: string | undefined) => Number(String(v ?? "").replace(",", ".")) || 0;
+
 function Categorias() {
   const { data } = useCategorias();
   const { data: periodicidades } = usePeriodicidades();
@@ -58,7 +60,6 @@ function Categorias() {
     if (periodicidades) setDesc(Object.fromEntries(periodicidades.map((p) => [p.codigo, String(p.descuento)])));
   }, [periodicidades]);
 
-  const num = (v: string | undefined) => Number(String(v ?? "").replace(",", ".")) || 0;
 
   async function guardar() {
     for (const c of data || []) {
@@ -171,6 +172,87 @@ function Categorias() {
         por la cantidad de meses, menos el descuento de esa forma de pago. Los bimestres, trimestres y semestres son del año calendario
         (ej.: 5° bimestre = septiembre-octubre).
       </p>
+    </Card>
+  );
+}
+
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const mesTexto = (iso: string) => { const [a, m] = iso.split("-").map(Number); return `${MESES[m - 1]} ${a}`; };
+
+interface ValorAnterior { categoria_id: string; hasta: string; cuota_mensual: number }
+
+/**
+ * Valores de cuota de períodos anteriores (por ejemplo, el valor 2025 que se siguió cobrando en el
+ * primer bimestre de 2026). Cada cuota toma el valor vigente en el último mes de su período.
+ */
+function ValoresAnteriores() {
+  const { data: categorias } = useCategorias();
+  const { can } = useAuth();
+  const toast = useToast();
+  const invalidate = useInvalidate();
+  const [nuevo, setNuevo] = useState({ categoria_id: "", hasta: "", valor: "" });
+  const { data } = useQuery({
+    queryKey: ["categorias", "valores_anteriores"],
+    queryFn: async () => unwrap(await supabase.from("categoria_valores").select("categoria_id, hasta, cuota_mensual").order("hasta", { ascending: false })) as ValorAnterior[],
+  });
+  const nombre = (id: string) => categorias?.find((c) => c.id === id)?.nombre || "—";
+  const puede = can("tesoreria");
+
+  async function agregar() {
+    const valor = num(nuevo.valor);
+    if (!nuevo.categoria_id || !nuevo.hasta || !valor) return toast("Elegí categoría, último mes y valor.", "error");
+    const { error } = await supabase.from("categoria_valores").upsert({ categoria_id: nuevo.categoria_id, hasta: `${nuevo.hasta}-01`, cuota_mensual: valor });
+    if (error) return toast(traducirError(error.message), "error");
+    toast("Valor guardado. Usá «Recalcular cuotas pendientes» para aplicarlo a las cuotas adeudadas.");
+    setNuevo({ categoria_id: "", hasta: "", valor: "" });
+    invalidate("categorias");
+  }
+
+  async function borrar(v: ValorAnterior) {
+    if (!confirm(`¿Eliminar el valor anterior de ${nombre(v.categoria_id)}?`)) return;
+    const { error } = await supabase.from("categoria_valores").delete().eq("categoria_id", v.categoria_id).eq("hasta", v.hasta);
+    if (error) return toast(traducirError(error.message), "error");
+    invalidate("categorias");
+  }
+
+  return (
+    <Card title="Valores anteriores de la cuota">
+      <p className="border-b border-slate-100 p-4 text-xs text-slate-500">
+        Cada cuota toma el valor vigente en el <b>último mes de su período</b>. Ejemplo: si AA valía $5.000 hasta febrero de 2026, la cuota de
+        enero, la de febrero y el bimestre enero-febrero salen a $5.000 por mes; el trimestre enero-marzo, el semestre y el año ya toman el valor actual.
+        Sin un valor anterior, se usa el valor actual de la categoría.
+      </p>
+      <Table>
+        <thead className="bg-slate-50">
+          <tr><th className="th">Categoría</th><th className="th">Para cuotas que terminan hasta</th><th className="th text-right">Valor mensual</th><th className="th" /></tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {(data || []).map((v) => (
+            <tr key={v.categoria_id + v.hasta}>
+              <td className="td">{nombre(v.categoria_id)}</td>
+              <td className="td">{mesTexto(v.hasta)}</td>
+              <td className="td text-right tabular-nums">{pesos(Number(v.cuota_mensual))}</td>
+              <td className="td text-right">
+                {puede && <button onClick={() => borrar(v)} className="text-slate-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+              </td>
+            </tr>
+          ))}
+          {!data?.length && <tr><td className="td text-sm text-slate-500" colSpan={4}>No hay valores anteriores cargados.</td></tr>}
+          {puede && (
+            <tr>
+              <td className="td">
+                <Select value={nuevo.categoria_id} onChange={(e) => setNuevo({ ...nuevo, categoria_id: e.target.value })}>
+                  <option value="">Categoría…</option>
+                  {categorias?.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </Select>
+              </td>
+              <td className="td"><Input type="month" value={nuevo.hasta} onChange={(e) => setNuevo({ ...nuevo, hasta: e.target.value })} /></td>
+              <td className="td"><Input placeholder="0" inputMode="decimal" value={nuevo.valor} onChange={(e) => setNuevo({ ...nuevo, valor: e.target.value })} /></td>
+              <td className="td text-right"><Button size="sm" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={agregar}>Agregar</Button></td>
+            </tr>
+          )}
+        </tbody>
+      </Table>
     </Card>
   );
 }

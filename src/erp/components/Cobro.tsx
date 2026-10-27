@@ -21,6 +21,7 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
   const [cuenta, setCuenta] = useState("");
   const [fechaPago, setFechaPago] = useState(hoyISO());
   const [monto, setMonto] = useState("");
+  const [retencion, setRetencion] = useState("");
   const [referencia, setReferencia] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -30,6 +31,7 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
       setMetodo("Efectivo");
       setFechaPago(hoyISO());
       setMonto(String(cuota.total));
+      setRetencion("");
       setReferencia("");
       setError(null);
     }
@@ -43,7 +45,9 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
   async function guardar() {
     if (!cuota) return;
     const m = Number(monto.replace(",", "."));
+    const ret = Number(retencion.replace(",", ".") || 0);
     if (!m || m <= 0) return setError("Ingresá un monto válido.");
+    if (ret < 0) return setError("La retención no puede ser negativa.");
     setSaving(true);
     setError(null);
     const { data, error } = await supabase.rpc("registrar_pago", {
@@ -53,13 +57,16 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
       p_fecha: fechaPago,
       p_referencia: referencia || null,
       p_monto: m,
+      p_retencion: ret,
     });
     setSaving(false);
     if (error) return setError(traducirError(error.message));
-    // Con la facturación automática activa el cobro deja la factura en cola: se envía a n8n / ARCA
-    if (cfg?.facturacion_auto) enviarFacturasEnCola().then(() => invalidate("facturas"));
+    // Con la facturación automática activa el cobro deja la factura en cola: se envía a n8n / ARCA.
+    // Las cuotas importadas del Excel ya se facturaron por fuera: no generan factura.
+    const factura = !!cfg?.facturacion_auto && !cuota.importada;
+    if (factura) enviarFacturasEnCola().then(() => invalidate("facturas"));
     await invalidate(...INVALIDAR_COBRO);
-    toast(`Pago registrado. Recibo N° ${data.recibo_numero}.${cfg?.facturacion_auto ? " La factura se está emitiendo." : ""}`);
+    toast(`Pago registrado. Recibo N° ${data.recibo_numero}.${factura ? " La factura se está emitiendo." : ""}`);
     onClose();
   }
 
@@ -101,10 +108,25 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
             <Field label="Fecha de pago">
               <Input type="date" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} />
             </Field>
-            <Field label="Monto cobrado" hint="Podés ajustarlo si se condonan intereses.">
+            <Field label="Monto recibido" hint="Lo que ingresó. Podés ajustarlo si se condonan intereses.">
               <Input inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} />
             </Field>
+            <Field label="Retenciones (opcional)" hint="Si el socio retuvo impuestos (con certificado): la cuota queda saldada por recibido + retenciones.">
+              <Input inputMode="decimal" placeholder="0" value={retencion} onChange={(e) => {
+                const r = e.target.value;
+                // Al cargar la retención se descuenta del monto recibido sugerido
+                const prev = Number(retencion.replace(",", ".") || 0), nueva = Number(r.replace(",", ".") || 0);
+                if (Number.isFinite(nueva) && Number.isFinite(prev)) setMonto(String(Math.round((Number(monto.replace(",", ".") || 0) + prev - nueva) * 100) / 100));
+                setRetencion(r);
+              }} />
+            </Field>
+            <div className="self-end pb-2 text-sm text-slate-600">
+              Se imputa a la cuota: <b>{pesos(Number(monto.replace(",", ".") || 0) + Number(retencion.replace(",", ".") || 0))}</b>
+            </div>
           </div>
+          {cuota.importada && cfg?.facturacion_auto && (
+            <p className="text-xs text-slate-500">Cuota importada del registro anterior: ya se facturó por fuera del sistema, así que este cobro no genera factura.</p>
+          )}
           <Field label="Referencia (opcional)" hint="N° de transferencia, cheque, etc.">
             <Input value={referencia} onChange={(e) => setReferencia(e.target.value)} />
           </Field>
