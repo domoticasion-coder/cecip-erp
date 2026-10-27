@@ -90,9 +90,15 @@ export function requireStaff(c: Caller, permisos?: Permiso[]): void {
   }
 }
 
+// Dirección pública de la app: la variable si está cargada; si no, el dominio de producción que
+// informa Vercel (VERCEL_PROJECT_PRODUCTION_URL); en desarrollo, localhost.
+const baseVercel = () => {
+  const d = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  return d ? `https://${d.replace(/^https?:\/\//, "")}` : "http://localhost:5173";
+};
 export const env = {
-  erpUrl: () => (process.env.ERP_URL || process.env.VITE_ERP_URL || "http://localhost:5173/erp").replace(/\/$/, ""),
-  portalUrl: () => (process.env.PORTAL_URL || process.env.VITE_PORTAL_URL || "http://localhost:5173/portal").replace(/\/$/, ""),
+  erpUrl: () => (process.env.ERP_URL || process.env.VITE_ERP_URL || `${baseVercel()}/erp`).trim().replace(/\/$/, ""),
+  portalUrl: () => (process.env.PORTAL_URL || process.env.VITE_PORTAL_URL || `${baseVercel()}/portal`).trim().replace(/\/$/, ""),
 };
 
 export const pesos = (n: number) =>
