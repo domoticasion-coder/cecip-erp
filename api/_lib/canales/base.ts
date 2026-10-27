@@ -3,7 +3,7 @@
  * en Storage, envío por WhatsApp y avisos al personal por área.
  */
 import crypto from "node:crypto";
-import { supabaseAdmin } from "../core.js";
+import { env, supabaseAdmin } from "../core.js";
 import { enviarArchivo, enviarTexto, normalizarNumero, variantesNumero, evolutionConfig } from "./evolution.js";
 
 export type Row = Record<string, any>;
@@ -234,11 +234,26 @@ export async function historial(conversacionId: string, sinId?: string, cantidad
 }
 
 // -----------------------------------------------------------------------------
+// Formato de WhatsApp: la IA a veces escribe en Markdown y puede copiar links viejos del historial
+
+/** Pasa Markdown a formato de WhatsApp y corrige links a localhost por la dirección pública. */
+export function formatoWhatsapp(texto: string): string {
+  const publica = new URL(env.portalUrl()).origin;
+  return texto
+    .replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/gi, publica)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, t: string, url: string) => (t.trim() === url ? url : `${t.trim()}: ${url}`))
+    .replace(/\*\*([^*\n]+)\*\*/g, "*$1*")
+    .replace(/__([^_\n]+)__/g, "_$1_")
+    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*");
+}
+
+// -----------------------------------------------------------------------------
 // Envío por WhatsApp (nunca corta la operación que lo dispara: si falla, queda el error registrado)
 export async function enviarWhatsapp(conv: Row, texto: string, info: {
   autor?: "ia" | "personal" | "sistema"; staffId?: string | null;
   archivo?: { ruta: string; nombre: string; mime: string } | null;
 } = {}): Promise<boolean> {
+  if (info.autor !== "personal") texto = formatoWhatsapp(texto);
   const base: NuevoMensaje = {
     conversacion_id: conv.id, canal: "whatsapp", direccion: "saliente", autor: info.autor || "ia", cuerpo: texto,
     staff_id: info.staffId || null,
