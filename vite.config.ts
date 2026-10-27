@@ -17,7 +17,9 @@ function devApi(): Plugin {
         const url = new URL(req.url || "/", "http://localhost");
         if (!url.pathname.startsWith("/api/")) return next();
 
-        const file = path.join(process.cwd(), url.pathname + ".ts");
+        let file = path.join(process.cwd(), url.pathname + ".ts");
+        // Rutas dinámicas de Vercel: /api/canales/estado -> api/canales/[accion].ts
+        if (!fs.existsSync(file)) file = path.join(process.cwd(), path.dirname(url.pathname), "[accion].ts");
         if (!fs.existsSync(file) || url.pathname.includes("/_lib/")) {
           res.statusCode = 404;
           res.end(JSON.stringify({ error: "Not found" }));

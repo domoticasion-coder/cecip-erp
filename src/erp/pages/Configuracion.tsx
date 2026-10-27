@@ -8,8 +8,9 @@ import { pesos } from "../../lib/format";
 import { ROLES_INFO, type Configuracion as Config, type Rol, type Staff } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Table, Tabs, useToast } from "../../components/ui";
 import { useCategorias, useConfig, useCuentas, useInvalidate, usePeriodicidades } from "../data";
+import { ConfigCanales } from "../components/Canales";
 
-type Tab = "cuotas" | "institucion" | "cuentas" | "personal";
+type Tab = "cuotas" | "institucion" | "cuentas" | "personal" | "canales";
 
 export default function Configuracion() {
   const [tab, setTab] = useState<Tab>("cuotas");
@@ -21,11 +22,13 @@ export default function Configuracion() {
         { value: "institucion", label: "Institución y transferencias" },
         { value: "cuentas", label: "Cuentas de tesorería" },
         { value: "personal", label: "Personal" },
+        { value: "canales", label: "Canales (WhatsApp y email)" },
       ]} />
       {tab === "cuotas" && <><Categorias /><div className="h-5" /><ValoresAnteriores /><div className="h-5" /><Cobranza /></>}
       {tab === "institucion" && <Institucion />}
       {tab === "cuentas" && <Cuentas />}
       {tab === "personal" && <Personal />}
+      {tab === "canales" && <ConfigCanales />}
     </>
   );
 }

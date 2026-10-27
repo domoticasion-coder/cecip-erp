@@ -1,6 +1,6 @@
-import { HttpError, env, getCaller, handle, json, pesos, readJson, requireStaff, supabaseAdmin } from "../_lib/core.js";
-import { emailLayout, emailValido, sendEmails, textToHtml } from "../_lib/email.js";
-import { encolarEmails } from "../_lib/colaEmails.js";
+import { HttpError, env, getCaller, handle, json, pesos, readJson, requireStaff, supabaseAdmin } from "../core.js";
+import { emailLayout, emailValido, sendEmails, textToHtml } from "../email.js";
+import { encolarEmails } from "../colaEmails.js";
 
 /**
  * POST /api/comunicaciones/enviar { socio_ids, asunto, cuerpo, comunicado_id?, imagen_url? }
@@ -9,7 +9,7 @@ import { encolarEmails } from "../_lib/colaEmails.js";
  * POST /api/comunicaciones/enviar { para, asunto, cuerpo, imagen_url? }
  * Email individual a una o más direcciones escritas a mano (separadas por coma), sin socio asociado.
  */
-export const POST = handle(async (req) => {
+export const enviarComunicacion = handle(async (req) => {
   const caller = await getCaller(req);
   requireStaff(caller, ["atencion", "tesoreria", "prensa"]);
 

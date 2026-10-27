@@ -7,7 +7,7 @@ export interface Mensaje {
 }
 
 // Modelos de Gemini a probar en orden (el primero que responda). GEMINI_MODEL tiene prioridad.
-const MODELOS = [
+export const MODELOS = [
   "gemini-3.1-flash-lite",
   "gemini-3.7-flash",
   "gemini-3.6-flash",

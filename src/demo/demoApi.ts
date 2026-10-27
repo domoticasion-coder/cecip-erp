@@ -227,7 +227,82 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
       return { respuesta: await copilotoDemo(comoYo, String(body.pregunta || "")) };
     }
   }
+  if (path.startsWith("canales/")) return canalesDemo(path.slice(8), body, yo.id);
   throw new Error(`Función no disponible en demo: ${path}`);
+}
+
+/** Canales en la demo: no hay WhatsApp ni email reales; los envíos quedan registrados en la conversación. */
+async function canalesDemo(accion: string, body: any, yoId: string): Promise<any> {
+  const [st] = await q(SERVICIO, `select rol from staff where user_id = ${lit(yoId)}`);
+  const puede = tienePermiso(st?.rol, ["atencion", "tesoreria", "prensa"]);
+  const exigir = () => { if (!puede) throw new Error("Tu rol no tiene permiso para esta acción."); };
+  switch (accion) {
+    case "estado": {
+      const mios = await q(SERVICIO, `select id, telefono, recibe_avisos from staff_whatsapp where user_id = ${lit(yoId)}`);
+      return {
+        whatsapp: { configurado: true, estado: "open", numero: "5493434000000" },
+        email: { conectada: true, usuario: "administracion@centrocomercialparana.com.ar", ultima_sync_at: new Date().toISOString(), ultimo_resultado: "Modo demo: no se leen emails reales" },
+        ia: true, mi_whatsapp: mios, webhook_listo: true, cron_listo: true,
+      };
+    }
+    case "enviar": {
+      exigir();
+      const [c] = await q(SERVICIO, `select * from conversaciones where id = ${lit(body.conversacion_id)}`);
+      if (!c) throw new Error("La conversación no existe.");
+      let adjunto: { nombre: string; mime: string } | null = body.archivo ? { nombre: body.archivo.nombre, mime: body.archivo.mime } : null;
+      if (body.recibo_cuota_id) {
+        const [cu] = await q(SERVICIO, `select recibo_numero from cuotas where id = ${lit(body.recibo_cuota_id)}`);
+        adjunto = { nombre: `Recibo-${String(cu?.recibo_numero || 0).padStart(6, "0")}.pdf`, mime: "application/pdf" };
+      }
+      const canal = !c.telefono && c.email ? "email" : "whatsapp";
+      const texto = String(body.texto || (adjunto ? "" : ""));
+      await q(SERVICIO, `insert into mensajes (conversacion_id, canal, direccion, autor, staff_id, cuerpo, asunto, adjunto_nombre, adjunto_mime, media_tipo)
+        values (${lit(c.id)}, ${lit(canal)}, 'saliente', 'personal', ${lit(yoId)}, ${lit(texto)}, ${lit(canal === "email" ? body.asunto || "Re: consulta" : null)},
+        ${lit(adjunto?.nombre || null)}, ${lit(adjunto?.mime || null)}, ${lit(adjunto ? (adjunto.mime.startsWith("image/") ? "imagen" : "documento") : null)})`);
+      await q(SERVICIO, `update conversaciones set ultimo_mensaje = ${lit((texto || (adjunto ? `📎 ${adjunto.nombre}` : "")).slice(0, 200))}, ultimo_canal = ${lit(canal)},
+        ultimo_mensaje_at = now(), no_leidos = 0, ia_pausada_hasta = now() + interval '12 hours', asignado_a = coalesce(asignado_a, ${lit(yoId)}) where id = ${lit(c.id)}`);
+      return { ok: true, canal };
+    }
+    case "subir":
+      exigir();
+      return { ruta: `personal/demo/${body.nombre}` };
+    case "archivo":
+      return { url: `${window.location.origin}/logo.png` };
+    case "iniciar": {
+      exigir();
+      const [s] = await q(SERVICIO, `select id, razon_social, nombre_comercial, whatsapp, telefono, email from socios where id = ${lit(body.socio_id)}`);
+      if (!s) throw new Error("Socio inexistente.");
+      const [ya] = await q(SERVICIO, `select id from conversaciones where socio_id = ${lit(s.id)} order by created_at limit 1`);
+      if (ya) return { id: ya.id };
+      const tel = String(s.whatsapp || s.telefono || "").replace(/\D/g, "");
+      const [c] = await q(SERVICIO, `insert into conversaciones (nombre, telefono, email, socio_id, etapa, ultimo_canal)
+        values (${lit(s.nombre_comercial || s.razon_social)}, ${lit(tel ? (tel.startsWith("54") ? tel : `549${tel.slice(-10)}`) : null)}, ${lit(tel ? null : s.email)}, ${lit(s.id)}, 'Socio', ${lit(tel ? "whatsapp" : "email")})
+        on conflict do nothing returning id`);
+      if (!c) throw new Error("Ya hay otra conversación con ese número.");
+      return { id: c.id };
+    }
+    case "ia": {
+      exigir();
+      await q(SERVICIO, `update conversaciones set ia_pausada_hasta = ${body.pausar ? "now() + interval '30 days'" : "null"} where id = ${lit(body.conversacion_id)}`);
+      return { ok: true };
+    }
+    case "sugerir":
+      exigir();
+      return { texto: "¡Hola! Gracias por escribirnos. Ya lo estamos revisando y te respondemos a la brevedad. Cualquier consulta, estamos a disposición. — Centro Comercial e Industrial de Paraná" };
+    case "vincular":
+      return { codigo: "K7P2-9QXA", vence: new Date(Date.now() + 86_400_000).toISOString() };
+    case "desvincular":
+      await q(SERVICIO, `delete from staff_whatsapp where id = ${lit(body.id)} and user_id = ${lit(yoId)}`);
+      return { ok: true };
+    case "email-sincronizar":
+      return { procesados: 0, omitido: "Modo demo: no se leen emails reales." };
+    case "whatsapp-qr":
+    case "whatsapp-webhook-config":
+    case "email-conectar":
+    case "email-desconectar":
+      throw new Error("En la demo no se conectan servicios reales.");
+  }
+  throw new Error(`Función no disponible en demo: canales/${accion}`);
 }
 
 /**

@@ -370,6 +370,8 @@ export interface WaCampana {
   total: number;
   origen: "cecip" | "comercia";
   imagen_url: string | null;
+  /** automatico: sale sola desde el número del CeCIP (Evolution API), de a poco y en horario */
+  modo?: "manual" | "automatico";
   created_at: string;
 }
 

@@ -248,6 +248,7 @@ const RPC_TIPO: Record<string, "scalar" | "row" | "set"> = {
   generar_cuotas: "scalar",
   resumen_dashboard: "scalar",
   registrar_pago: "row",
+  conversacion_leida: "scalar",
   anular_pago: "row",
   resolver_acceso: "row",
   inscriptos_por_evento: "set",

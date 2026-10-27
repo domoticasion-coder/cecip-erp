@@ -14,6 +14,7 @@ import salones010 from "../../supabase/migrations/010_alquiler_salones.sql?raw";
 import colaEmails011 from "../../supabase/migrations/011_cola_emails.sql?raw";
 import roles012 from "../../supabase/migrations/012_roles.sql?raw";
 import valores013 from "../../supabase/migrations/013_valores_anteriores_y_retenciones.sql?raw";
+import canales014 from "../../supabase/migrations/014_canales.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
@@ -306,9 +307,88 @@ insert into auth.users (id, email) values ${ROLES_012.map((k) => `('${U[k].id}',
 insert into staff (user_id, nombre, email, rol) values ${ROLES_012.map((k) => `('${U[k].id}', '${U[k].nombre}', '${U[k].email}', '${k}')`).join(", ")};
 `;
 
+// Canales (migración 014): conversaciones de ejemplo de WhatsApp y email con cada caso
+const SEED_014 = `
+do $$
+declare
+  s1 uuid := (select socio_id from socio_usuarios where user_id = '${U.socio.id}');
+  s2 uuid := (select s.id from socios s where s.estado = 'activo' and s.email is not null and s.id <> coalesce(s1, gen_random_uuid())
+    and exists (select 1 from cuotas c where c.socio_id = s.id and c.estado = 'pendiente' and c.tipo = 'cuota_social') order by s.razon_social offset 3 limit 1);
+  c1 uuid; c2 uuid; c3 uuid; c4 uuid; c5 uuid; c6 uuid; m4 uuid;
+begin
+  -- 1) Socio por WhatsApp: consulta su deuda, pide el link y el recibo
+  insert into conversaciones (nombre, telefono, socio_id, etapa, interes, area, resumen, ultimo_canal, ultimo_mensaje_at, ultimo_entrante_at, no_leidos)
+  values ('Juan Pérez', '5493434314448', s1, 'Socio', 'Pagos y cuotas', 'tesoreria', 'Consultó su deuda, pidió el link de pago y el último recibo.', 'whatsapp', now() - interval '25 minutes', now() - interval '27 minutes', 1)
+  returning id into c1;
+  insert into mensajes (conversacion_id, canal, direccion, autor, cuerpo, created_at) values
+    (c1, 'whatsapp', 'entrante', 'contacto', 'Hola! cuánto debo de las cuotas?', now() - interval '31 minutes'),
+    (c1, 'whatsapp', 'saliente', 'ia', E'¡Hola Juan! 👋 Te paso el estado de cuenta de *25 de Junio S.A.*:\\n- Cuota social Septiembre-Octubre 2026: $ 16.000 (vencida)\\n\\nDeuda total: *$ 16.000*. ¿Querés que te mande el link para pagarla con Mercado Pago?', now() - interval '30 minutes'),
+    (c1, 'whatsapp', 'entrante', 'contacto', 'si dale, y mandame el recibo del pago anterior', now() - interval '28 minutes'),
+    (c1, 'whatsapp', 'saliente', 'ia', 'Recibo de Cuota social Julio-Agosto 2026', now() - interval '27 minutes'),
+    (c1, 'whatsapp', 'saliente', 'ia', E'¡Listo! Te mandé el recibo en PDF 📄\\n\\nY acá tenés el link para pagar los $ 16.000: https://mpago.la/demo-cecip\\nCuando se acredite te llega la confirmación.', now() - interval '26 minutes'),
+    (c1, 'whatsapp', 'entrante', 'contacto', '🎤 Perfecto, gracias. Una consulta más, ¿hay alguna capacitación de facturación electrónica este mes?', now() - interval '25 minutes');
+  update mensajes set adjunto_nombre = 'Recibo-000124.pdf', adjunto_mime = 'application/pdf', media_tipo = 'documento' where conversacion_id = c1 and cuerpo like 'Recibo de%';
+  update mensajes set media_tipo = 'audio' where conversacion_id = c1 and cuerpo like '🎤%';
+
+  -- 2) No socio que quiere asociarse (pipeline: Alta en trámite, derivado a Secretaría)
+  insert into conversaciones (nombre, telefono, empresa, etapa, interes, area, resumen, acepta_novedades, ultimo_canal, ultimo_mensaje_at, ultimo_entrante_at, no_leidos)
+  values ('Lucía Benítez', '5493415550199', 'Panadería La Espiga', 'Alta en trámite', 'Asociarse', 'secretaria', 'Quiere asociar su panadería (CUIT 27-30111222-4, rubro gastronomía). Derivada a Secretaría para completar el alta.', true, 'whatsapp', now() - interval '2 hours', now() - interval '2 hours 2 minutes', 0)
+  returning id into c2;
+  insert into mensajes (conversacion_id, canal, direccion, autor, cuerpo, created_at) values
+    (c2, 'whatsapp', 'entrante', 'contacto', 'Buenas! tengo una panadería y quería saber qué beneficios tiene asociarse', now() - interval '2 hours 10 minutes'),
+    (c2, 'whatsapp', 'saliente', 'ia', E'¡Hola! Gracias por escribirle al CeCIP 😊 Asociarte te da:\\n- Representación ante el municipio y la provincia\\n- Capacitaciones sin cargo o con descuento\\n- Difusión de tu comercio y el programa ComercIA\\n- Salones con tarifa preferencial\\n\\nLa cuota depende de la categoría (desde $ 4.000 por mes). ¿Cómo se llama tu panadería?', now() - interval '2 hours 9 minutes'),
+    (c2, 'whatsapp', 'entrante', 'contacto', 'Panadería La Espiga, soy Lucía. Me quiero asociar! CUIT 27-30111222-4', now() - interval '2 hours 3 minutes'),
+    (c2, 'whatsapp', 'saliente', 'ia', E'¡Genial, Lucía! Ya le pasé tus datos a Secretaría para completar el alta: te van a escribir en breve. ¿Querés recibir las novedades del CeCIP por WhatsApp?', now() - interval '2 hours 2 minutes'),
+    (c2, 'whatsapp', 'entrante', 'contacto', 'Sí, dale!', now() - interval '2 hours 1 minute'),
+    (c2, 'whatsapp', 'saliente', 'ia', '¡Listo! Te vamos a avisar de capacitaciones y eventos. Escribí BAJA cuando quieras dejar de recibirlas.', now() - interval '2 hours');
+
+  -- 3) No socio que consulta por un salón
+  insert into conversaciones (nombre, telefono, etapa, interes, area, resumen, ultimo_canal, ultimo_mensaje_at, ultimo_entrante_at, no_leidos)
+  values ('Martín Godoy', '5493436120044', 'Interesado', 'Alquiler de salón', 'administracion', 'Quiere el salón para 60 personas el sábado 14/11 de 20 a 2 h (cumpleaños).', 'whatsapp', now() - interval '5 hours', now() - interval '5 hours', 2)
+  returning id into c3;
+  insert into mensajes (conversacion_id, canal, direccion, autor, cuerpo, created_at) values
+    (c3, 'whatsapp', 'entrante', 'contacto', 'Hola, alquilan salón para un cumple de 60 personas? sería el sábado 14/11', now() - interval '5 hours 6 minutes'),
+    (c3, 'whatsapp', 'saliente', 'ia', E'¡Hola! Sí 🙌 El *Salón auditorio* tiene capacidad para 120 personas y el sábado 14/11 está libre. ¿En qué horario lo necesitarías?', now() - interval '5 hours 5 minutes'),
+    (c3, 'whatsapp', 'entrante', 'contacto', 'De 20 a 2 de la mañana', now() - interval '5 hours 1 minute'),
+    (c3, 'whatsapp', 'saliente', 'ia', 'Perfecto, le paso tu consulta a Administración para que te confirme la tarifa y la seña. ¡Te escriben en un rato!', now() - interval '5 hours');
+
+  -- 4) Socio por email con comprobante de transferencia (queda para conciliar en Tesorería)
+  insert into conversaciones (nombre, email, socio_id, etapa, interes, area, resumen, ultimo_canal, ultimo_mensaje_at, ultimo_entrante_at, no_leidos)
+  values ('Administración', (select email from socios where id = s2), s2, 'Socio', 'Pagos y cuotas', 'tesoreria', 'Envía el comprobante de la transferencia de la cuota de octubre.', 'email', now() - interval '50 minutes', now() - interval '50 minutes', 1)
+  returning id into c4;
+  insert into mensajes (conversacion_id, canal, direccion, autor, asunto, cuerpo, adjunto_nombre, adjunto_mime, media_tipo, analisis, created_at) values
+    (c4, 'email', 'entrante', 'contacto', 'Pago cuota octubre', E'Buenas tardes,\\nAdjunto el comprobante de la transferencia de la cuota de octubre.\\nSaludos.', 'Comprobante-transferencia.pdf', 'application/pdf', 'documento',
+     '{"tipo":"comprobante_pago","area":"tesoreria","prioridad":"normal","resumen":"Comprobante de transferencia por la cuota de octubre.","respuesta_sugerida":"¡Gracias! Recibimos el comprobante; Tesorería lo concilia y te enviamos el recibo."}', now() - interval '50 minutes')
+    returning id into m4;
+  insert into comprobantes_recibidos (conversacion_id, mensaje_id, socio_id, canal, monto, fecha, emisor, referencia, archivo_nombre, archivo_mime, analisis)
+  values (c4, m4, s2, 'email', (select monto from cuotas where socio_id = s2 and estado = 'pendiente' and tipo = 'cuota_social' order by vencimiento limit 1), current_date - 1, 'Banco Nación', '000245871', 'Comprobante-transferencia.pdf', 'application/pdf', '{"tipo":"comprobante_pago"}');
+
+  -- 5) Email automático (publicidad): queda cerrado, sin molestar
+  insert into conversaciones (nombre, email, etapa, ultimo_canal, ultimo_mensaje_at, estado, resumen)
+  values ('Newsletter Proveedores', 'novedades@proveedor-ejemplo.com', 'Nuevo', 'email', now() - interval '1 day', 'cerrada', 'Email automático o masivo.')
+  returning id into c5;
+  insert into mensajes (conversacion_id, canal, direccion, autor, asunto, cuerpo, analisis, created_at) values
+    (c5, 'email', 'entrante', 'contacto', '¡Ofertas de la semana!', 'Conocé nuestras promociones…', '{"tipo":"publicidad","resumen":"Email automático o masivo."}', now() - interval '1 day');
+
+  -- 6) Alguien del personal consultando el Copiloto por WhatsApp
+  insert into staff_whatsapp (user_id, telefono) values ('${U.administracion.id}', '5493435009988') on conflict do nothing;
+  insert into conversaciones (nombre, telefono, staff_user_id, etapa, ultimo_canal, ultimo_mensaje_at)
+  values ('${U.administracion.nombre}', '5493435009988', '${U.administracion.id}', 'Nuevo', 'whatsapp', now() - interval '3 hours')
+  returning id into c6;
+  insert into mensajes (conversacion_id, canal, direccion, autor, cuerpo, created_at) values
+    (c6, 'whatsapp', 'entrante', 'contacto', '¿cuántos socios tienen cuotas vencidas?', now() - interval '3 hours 1 minute'),
+    (c6, 'whatsapp', 'saliente', 'ia', E'Hoy hay *38 socios* con cuotas vencidas, por *$ 1.284.000* en total.\\nLos de mayor deuda están en *Cobranzas y morosos* del ERP.', now() - interval '3 hours');
+
+  -- último mensaje de cada conversación (para la lista de la Bandeja)
+  update conversaciones c set ultimo_mensaje = left(regexp_replace(coalesce(nullif(m.cuerpo, ''), '📎 ' || m.adjunto_nombre), '\\s+', ' ', 'g'), 200)
+  from (select distinct on (conversacion_id) conversacion_id, cuerpo, adjunto_nombre from mensajes order by conversacion_id, created_at desc) m
+  where m.conversacion_id = c.id;
+end $$;
+`;
+
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v17";
+const IDB_NAME = "cecip-demo-v20";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -336,6 +416,8 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(roles012);
         await db.exec(SEED_012);
         await db.exec(valores013);
+        await db.exec(canales014);
+        await db.exec(SEED_014);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;

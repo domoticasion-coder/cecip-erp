@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Users, Receipt, AlertCircle, Wallet, Megaphone, CalendarDays, Sparkles,
   UserCheck, Settings, LogOut, Menu, X, LayoutTemplate, Send, Building2, FileText, GraduationCap, Bot,
+  Inbox, Smartphone,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -30,18 +31,21 @@ import Alquileres from "./pages/Alquileres";
 import Facturacion from "./pages/Facturacion";
 import Capacitaciones from "./pages/Capacitaciones";
 import Copiloto from "./pages/Copiloto";
+import Bandeja from "./pages/Bandeja";
+import { MiWhatsappModal } from "./components/Canales";
 
 interface NavItem {
   to: Seccion; // quién la ve: ver shared/roles.ts
   label: string;
   icon: typeof Users;
-  badge?: "accesos" | "comercia" | "facturas";
+  badge?: "accesos" | "comercia" | "facturas" | "bandeja";
   ia?: boolean; // se marca como novedad
 }
 
 const NAV: NavItem[] = [
   { to: "/", label: "Inicio", icon: LayoutDashboard },
   { to: "/copiloto", label: "Copiloto CeCIP", icon: Bot, ia: true },
+  { to: "/bandeja", label: "Bandeja", icon: Inbox, badge: "bandeja" },
   { to: "/socios", label: "Socios", icon: Users },
   { to: "/cuotas", label: "Cuotas", icon: Receipt },
   { to: "/cobranzas", label: "Cobranzas y morosos", icon: AlertCircle },
@@ -99,18 +103,20 @@ export default function ErpApp() {
 
 function Shell() {
   const { staff, signOut, ve } = useAuth();
+  const [miWa, setMiWa] = useState(false);
   const [open, setOpen] = useState(false);
   const location = useLocation();
 
   const { data: badges } = useQuery({
     queryKey: ["badges"],
     queryFn: async () => {
-      const [a, c, f] = await Promise.all([
+      const [a, c, f, b] = await Promise.all([
         supabase.from("socio_usuarios").select("user_id", { count: "exact", head: true }).eq("estado", "pendiente"),
         supabase.from("comercia_solicitudes").select("id", { count: "exact", head: true }).eq("estado", "nueva"),
         supabase.from("facturas").select("id", { count: "exact", head: true }).eq("estado", "error"),
+        supabase.from("conversaciones").select("id", { count: "exact", head: true }).gt("no_leidos", 0).is("staff_user_id", null),
       ]);
-      return { accesos: a.count || 0, comercia: c.count || 0, facturas: f.count || 0 };
+      return { accesos: a.count || 0, comercia: c.count || 0, facturas: f.count || 0, bandeja: b.count || 0 };
     },
     refetchInterval: 60_000,
   });
@@ -166,6 +172,11 @@ function Shell() {
           <div className="truncate font-medium text-white">{staff!.nombre}</div>
           <div className="text-brand-200">{ROLES[staff!.rol]}</div>
         </div>
+        {staff!.rol !== "comercia" && (
+          <button onClick={() => setMiWa(true)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-brand-100 hover:bg-white/10 hover:text-white">
+            <Smartphone className="h-4 w-4" /> Mi WhatsApp
+          </button>
+        )}
         <ThemeToggle variant="sidebar" conTexto />
         <button onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-brand-100 hover:bg-white/10 hover:text-white">
           <LogOut className="h-4 w-4" /> Cerrar sesión
@@ -176,6 +187,7 @@ function Shell() {
 
   return (
     <div className="flex min-h-full">
+      <MiWhatsappModal open={miWa} onClose={() => setMiWa(false)} />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 bg-brand-800 lg:block">{sidebar}</aside>
 
       {open && (
@@ -207,6 +219,7 @@ function Shell() {
             <Routes>
               {ve("/") && <Route path="/" element={<Inicio />} />}
               {ve("/copiloto") && <Route path="/copiloto" element={<Copiloto />} />}
+              {ve("/bandeja") && <Route path="/bandeja" element={<Bandeja />} />}
               {ve("/socios") && <Route path="/socios" element={<Socios />} />}
               {ve("/socios") && <Route path="/socios/:id" element={<SocioDetalle />} />}
               {ve("/cuotas") && <Route path="/cuotas" element={<Cuotas />} />}

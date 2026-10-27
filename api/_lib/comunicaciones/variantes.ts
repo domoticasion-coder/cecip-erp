@@ -1,11 +1,11 @@
-import { HttpError, getCaller, handle, json, readJson, requireStaff } from "../_lib/core.js";
-import { variantesGemini } from "../_lib/copilot.js";
+import { HttpError, getCaller, handle, json, readJson, requireStaff } from "../core.js";
+import { variantesGemini } from "../copilot.js";
 
 /**
  * POST /api/comunicaciones/variantes { mensaje, cantidad? }
  * Devuelve reescrituras del mensaje (IA) para que cada socio reciba un WhatsApp distinto.
  */
-export const POST = handle(async (req) => {
+export const variantesMensaje = handle(async (req) => {
   const caller = await getCaller(req);
   requireStaff(caller, ["atencion", "tesoreria", "prensa"]);
   const { mensaje, cantidad } = await readJson<{ mensaje?: string; cantidad?: number }>(req);

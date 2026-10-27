@@ -13,6 +13,7 @@ import {
 } from "../../lib/variaciones";
 import type { WaCampana, WaMensaje } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Select, Textarea, cx, useToast } from "../../components/ui";
+import { useEstadoCanales } from "./Canales";
 import { ImagenInput } from "../../components/ImagenInput";
 import { copiarImagen } from "../../lib/imagenes";
 import { useCategorias, useConfig, useInvalidate } from "../data";
@@ -230,6 +231,9 @@ function NuevaCampana({ origen, segmentoInicial, onVolver, onCreada }: {
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [semilla, setSemilla] = useState(0);
+  const { data: canales } = useEstadoCanales();
+  const waConectado = canales?.whatsapp?.configurado && canales.whatsapp.estado === "open";
+  const [automatico, setAutomatico] = useState(false);
 
   const destinatarios: Dest[] = useMemo(() => {
     if (esCia) {
@@ -285,7 +289,8 @@ function NuevaCampana({ origen, segmentoInicial, onVolver, onCreada }: {
     setCreando(true);
     setError(null);
     const { data: camp, error: e1 } = await supabase.from("wa_campanas")
-      .insert({ nombre: nombre.trim(), mensaje_base: base.trim(), variantes: variantes.map((v) => v.trim()).filter(Boolean), total: destinatarios.length, created_by: staff?.user_id, origen, imagen_url: imagen })
+      .insert({ nombre: nombre.trim(), mensaje_base: base.trim(), variantes: variantes.map((v) => v.trim()).filter(Boolean), total: destinatarios.length, created_by: staff?.user_id, origen, imagen_url: imagen,
+        modo: !esCia && automatico ? "automatico" : "manual" })
       .select("id").single();
     if (e1 || !camp) {
       setCreando(false);
@@ -408,6 +413,16 @@ function NuevaCampana({ origen, segmentoInicial, onVolver, onCreada }: {
           {conLink && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
               El link de pago de cada socio se genera en el momento de enviarle el mensaje (Mercado Pago).
+            </div>
+          )}
+          {!esCia && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              <Checkbox checked={automatico} onChange={setAutomatico} label={<><b>Envío automático</b> desde el WhatsApp del CeCIP</>} />
+              <p className="mt-1 text-xs text-emerald-800">
+                {waConectado
+                  ? "Los mensajes salen solos, de a poco, en el horario y con el tope diario de Configuración → Canales. Las respuestas llegan a la Bandeja y la IA las atiende."
+                  : "Disponible cuando el WhatsApp del CeCIP esté conectado (Configuración → Canales). Mientras tanto, la campaña se envía a mano desde este navegador."}
+              </p>
             </div>
           )}
           <ErrorBox error={error} />
@@ -581,6 +596,12 @@ function EnviarCampana({ id, onVolver }: { id: string; onVolver: () => void }) {
   return (
     <div className="space-y-5">
       <Button variant="ghost" size="sm" icon={<ArrowLeft className="h-4 w-4" />} onClick={onVolver}>Campañas</Button>
+
+      {data.campana.modo === "automatico" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+          <b>Envío automático:</b> esta campaña sale sola desde el WhatsApp del CeCIP, de a poco y en horario. Podés pausarla o mandar alguno a mano igual.
+        </div>
+      )}
 
       <Card>
         <div className="flex flex-wrap items-center gap-4 p-4">

@@ -20,6 +20,7 @@ const GUIA_ERP: [Seccion[], string][] = [
   [["/tesoreria"], "Tesorería y banco: movimientos de caja y bancos; pestaña \"Banco Santander\" para sincronizar, importar el extracto y conciliar (imputar a cuotas o alquileres)."],
   [["/facturacion"], "Facturación: comprobantes emitidos en ARCA vía n8n, cola y errores (reintentar); pestaña \"Conexión ARCA / n8n\"."],
   [["/alquileres"], "Alquileres: cobros (mensuales y de reservas), pestaña \"Salones y reservas\" para alquileres temporales por día u horas (con seña, calendario y control de superposición) y \"Inmuebles y contratos\" para contratos mensuales y ajustes (ICL, IPC, porcentaje)."],
+  [["/bandeja"], "Bandeja: conversaciones de WhatsApp y email con socios y contactos (la IA responde y deriva; el personal responde a mano con texto, PDF, imágenes o recibos), pipeline de contactos y comprobantes de pago recibidos para conciliar."],
   [["/comunicacion"], "Comunicación: comunicados del portal (con imagen), email individual, email masivo (con cola de envío por cupo diario), campañas de WhatsApp con mensajes variados y espera entre envíos, historial."],
   [["/eventos"], "Eventos: charlas y actividades, formulario público para no socios."],
   [["/capacitaciones"], "Capacitaciones: cursos (docente, días, horario, clases, precios socio/no socio, honorarios), inscriptos con datos de facturación, cobro y factura, pestañas Docentes y Pagos a docentes."],
@@ -29,7 +30,7 @@ const GUIA_ERP: [Seccion[], string][] = [
 ];
 
 const NOMBRE_SECCION: Record<Seccion, string> = {
-  "/": "Inicio", "/copiloto": "Copiloto", "/socios": "Socios", "/cuotas": "Cuotas", "/cobranzas": "Cobranzas y morosos",
+  "/": "Inicio", "/copiloto": "Copiloto", "/bandeja": "Bandeja", "/socios": "Socios", "/cuotas": "Cuotas", "/cobranzas": "Cobranzas y morosos",
   "/tesoreria": "Tesorería y banco", "/facturacion": "Facturación", "/alquileres": "Alquileres", "/comunicacion": "Comunicación",
   "/eventos": "Eventos", "/capacitaciones": "Capacitaciones", "/comercia": "ComercIA", "/contenido": "Contenido del portal",
   "/difusion": "Difusión ComercIA", "/accesos": "Accesos al portal", "/configuracion": "Configuración",

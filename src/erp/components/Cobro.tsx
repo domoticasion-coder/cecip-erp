@@ -12,7 +12,12 @@ import { enviarFacturasEnCola, useConfig, useCuentas, useInvalidate } from "../d
 export const INVALIDAR_COBRO = ["cuotas", "socios", "socio", "dashboard", "movimientos", "morosos", "notas", "facturas"];
 
 /** Modal para registrar el cobro manual de una cuota (efectivo, transferencia, etc.) */
-export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onClose: () => void }) {
+export function PagoModal({ cuota, onClose, sugerido, onRegistrado }: {
+  cuota: CuotaDetalle | null; onClose: () => void;
+  /** Datos de un comprobante recibido (Bandeja → Comprobantes) para precargar el cobro */
+  sugerido?: { metodo?: string; fecha?: string | null; monto?: number | null; referencia?: string | null };
+  onRegistrado?: (cuotaId: string) => void;
+}) {
   const { data: cuentas } = useCuentas();
   const { data: cfg } = useConfig();
   const invalidate = useInvalidate();
@@ -28,14 +33,14 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
 
   useEffect(() => {
     if (cuota) {
-      setMetodo("Efectivo");
-      setFechaPago(hoyISO());
-      setMonto(String(cuota.total));
+      setMetodo(sugerido?.metodo || "Efectivo");
+      setFechaPago(sugerido?.fecha || hoyISO());
+      setMonto(String(sugerido?.monto && sugerido.monto < Number(cuota.total) ? sugerido.monto : cuota.total));
       setRetencion("");
-      setReferencia("");
+      setReferencia(sugerido?.referencia || "");
       setError(null);
     }
-  }, [cuota]);
+  }, [cuota, sugerido]);
 
   useEffect(() => {
     if (!cfg) return;
@@ -67,6 +72,7 @@ export function PagoModal({ cuota, onClose }: { cuota: CuotaDetalle | null; onCl
     if (factura) enviarFacturasEnCola().then(() => invalidate("facturas"));
     await invalidate(...INVALIDAR_COBRO);
     toast(`Pago registrado. Recibo N° ${data.recibo_numero}.${factura ? " La factura se está emitiendo." : ""}`);
+    onRegistrado?.(cuota.id);
     onClose();
   }
 

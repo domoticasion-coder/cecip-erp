@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Link2, Mail, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Inbox, Link2, Mail, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import { api } from "../../lib/api";
 import { supabase, traducirError, unwrap } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { fecha, fechaHora, formatCuit, nombreSocio, pesos } from "../../lib/format";
@@ -25,10 +26,23 @@ const TIPOS_NOTA: Record<SocioNota["tipo"], string> = {
 export default function SocioDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { can, staff } = useAuth();
+  const { can, staff, ve } = useAuth();
   const toast = useToast();
   const invalidate = useInvalidate();
   const [tab, setTab] = useState<Tab>("cuenta");
+  const [abriendo, setAbriendo] = useState(false);
+
+  async function abrirConversacion() {
+    setAbriendo(true);
+    try {
+      const r = await api<{ id: string }>("canales/iniciar", { socio_id: id });
+      navigate(`/bandeja?c=${r.id}`);
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setAbriendo(false);
+    }
+  }
   const [editar, setEditar] = useState(false);
   const [nuevaCuota, setNuevaCuota] = useState(false);
   const [link, setLink] = useState<LinkTarget | null>(null);
@@ -85,6 +99,12 @@ export default function SocioDetalle() {
         }
         actions={
           <>
+            {ve("/bandeja") && can("atencion", "tesoreria", "prensa") && (
+              <Button variant="secondary" icon={<Inbox className="h-4 w-4" />} disabled={!wa && !socio.email} loading={abriendo} onClick={abrirConversacion}
+                title="Escribirle por WhatsApp o email desde la Bandeja (con la IA, archivos y recibos)">
+                Conversación
+              </Button>
+            )}
             <Button variant="secondary" icon={<MessageCircle className="h-4 w-4" />} disabled={!wa}
               onClick={() => abrirWhatsapp(socio.whatsapp || socio.telefono, `Hola ${nombre}! Te escribimos del Centro Comercial e Industrial de Paraná.`)}>
               WhatsApp
