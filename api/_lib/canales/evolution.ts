@@ -9,9 +9,10 @@
  */
 
 export function evolutionConfig() {
-  const url = (process.env.EVOLUTION_API_URL || "").replace(/\/+$/, "");
-  const key = process.env.EVOLUTION_API_KEY || "";
-  const instance = process.env.EVOLUTION_INSTANCE || "";
+  // trim: al pegar en la terminal de Windows se pueden colar espacios o saltos de línea
+  const url = (process.env.EVOLUTION_API_URL || "").trim().replace(/\/+$/, "");
+  const key = (process.env.EVOLUTION_API_KEY || "").trim();
+  const instance = (process.env.EVOLUTION_INSTANCE || "").trim();
   return { url, key, instance, configurado: Boolean(url && key && instance) };
 }
 
