@@ -122,6 +122,12 @@ export async function demoApi(path: string, body: any = {}): Promise<any> {
       return { cancelados: filas.length };
     }
 
+    case "integraciones/cola-emails-reintentar": {
+      const filas = await q(SERVICIO, `update email_cola set estado = 'pendiente', error = null where estado = 'error'
+        and destinatario ~ '^[!-~]+@[!-~]+$' ${body.lote_id ? `and lote_id = ${lit(body.lote_id)}` : ""} returning id`);
+      return { reintentados: filas.length, invalidos: 0 };
+    }
+
     case "accesos/resolver": {
       const r = await rpc("resolver_acceso", {
         p_user_id: body.user_id, p_aprobar: body.aprobar, p_socio_id: body.socio_id || null, p_motivo: body.motivo || null,

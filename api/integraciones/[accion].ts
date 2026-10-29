@@ -2,7 +2,7 @@ import { HttpError, getCaller, handle, json, readJson, requireStaff } from "../_
 import {
   guardarMovimientosBanco, n8nConfig, procesarFacturas, registrarResultadoFactura, sincronizarBanco, verificarSecreto,
 } from "../_lib/integraciones.js";
-import { cancelarPendientes, cupoRestante, limitesDiarios, procesarCola, usadosHoy } from "../_lib/colaEmails.js";
+import { cancelarPendientes, cupoRestante, limitesDiarios, procesarCola, reintentarErrores, usadosHoy } from "../_lib/colaEmails.js";
 
 /**
  * Un solo endpoint para las integraciones con n8n (así no se suman funciones en Vercel):
@@ -14,6 +14,7 @@ import { cancelarPendientes, cupoRestante, limitesDiarios, procesarCola, usadosH
  *   GET  /api/integraciones/cola-emails         -> cupo diario de emails y lo que queda en cola
  *   POST /api/integraciones/cola-emails-procesar          -> envía ahora lo que entre en el cupo de hoy
  *   POST /api/integraciones/cola-emails-cancelar { lote_id? } -> cancela lo que todavía no salió
+ *   POST /api/integraciones/cola-emails-reintentar { lote_id? } -> vuelve a poner en cola los que fallaron
  *
  *  Desde n8n (header x-cecip-secret = N8N_SECRET):
  *   POST /api/integraciones/facturas-callback   { factura_id, cae, cae_vencimiento, numero, pdf_url } | { factura_id, error }
@@ -75,6 +76,11 @@ export const POST = handle(async (req) => {
       requireStaff(await getCaller(req), ["atencion", "tesoreria", "prensa"]);
       const body = await readJson<{ lote_id?: string }>(req).catch(() => ({} as { lote_id?: string }));
       return json({ cancelados: await cancelarPendientes(body.lote_id) });
+    }
+    case "cola-emails-reintentar": {
+      requireStaff(await getCaller(req), ["atencion", "tesoreria", "prensa"]);
+      const body = await readJson<{ lote_id?: string }>(req).catch(() => ({} as { lote_id?: string }));
+      return json(await reintentarErrores(body.lote_id));
     }
     default:
       throw new HttpError(404, "Acción inexistente.");

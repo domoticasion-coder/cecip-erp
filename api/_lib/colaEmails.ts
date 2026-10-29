@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./core.js";
-import { sendEmails } from "./email.js";
+import { emailValido, sendEmails } from "./email.js";
 
 /**
  * Cola de emails con cupo diario.
@@ -201,4 +201,21 @@ export async function cancelarPendientes(loteId?: string): Promise<number> {
   const { data, error } = await q.select("id");
   if (error) throw new Error(error.message);
   return data?.length || 0;
+}
+
+/**
+ * Vuelve a poner en cola los emails que fallaron (de un lote o de todos), salvo los de direcciones
+ * inválidas, que seguirían fallando: esos hay que corregirlos en la ficha del socio.
+ */
+export async function reintentarErrores(loteId?: string): Promise<{ reintentados: number; invalidos: number }> {
+  let q = supabaseAdmin().from("email_cola").select("id, destinatario").eq("estado", "error");
+  if (loteId) q = q.eq("lote_id", loteId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const ok = (data || []).filter((f) => emailValido(f.destinatario)).map((f) => f.id);
+  for (let i = 0; i < ok.length; i += 200) {
+    const { error: e2 } = await supabaseAdmin().from("email_cola").update({ estado: "pendiente", error: null, procesado_at: null }).in("id", ok.slice(i, i + 200));
+    if (e2) throw new Error(e2.message);
+  }
+  return { reintentados: ok.length, invalidos: (data || []).length - ok.length };
 }

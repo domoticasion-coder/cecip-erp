@@ -36,6 +36,16 @@ function turnosDesde(h: { rol: "contacto" | "cecip"; texto: string }[], texto: s
 }
 
 // -----------------------------------------------------------------------------
+// Conocimiento institucional (ERP → Contenido del portal): feriados, normativa, información útil
+
+async function conocimiento(): Promise<string> {
+  const { data } = await sb().from("conocimiento_cecip").select("titulo, contenido").eq("activo", true).order("orden");
+  if (!data?.length) return "";
+  return `\n\nCONOCIMIENTO DEL CECIP (usalo para responder consultas sobre estos temas; para casos puntuales sugerí consultar al contador o al gremio de la actividad):\n${
+    data.map((k) => `${String(k.titulo).toUpperCase()}\n${String(k.contenido).trim()}`).join("\n\n").slice(0, 12_000)}`;
+}
+
+// -----------------------------------------------------------------------------
 // Herramientas comunes
 
 const DECL_DERIVAR: Declaracion = {
@@ -105,7 +115,7 @@ function instruccionesSocio(socio: Row) {
   return `Sos el asistente del Centro Comercial e Industrial de Paraná (CeCIP) por WhatsApp. Hoy es ${hoyAR()} (Argentina).
 Estás hablando con un SOCIO del CeCIP: ${socio.razon_social}${socio.nombre_comercial ? ` ("${socio.nombre_comercial}")` : ""}${socio.numero_socio ? `, socio N° ${socio.numero_socio}` : ""}.
 
-Podés ayudar con: su estado de cuenta y cuotas, el link de pago, recibos en PDF, eventos y capacitaciones (e inscribirlo), comunicados del CeCIP, y derivar a la persona correcta del CeCIP.
+Podés ayudar con: su estado de cuenta y cuotas, el link de pago, recibos en PDF, eventos y capacitaciones (e inscribirlo), comunicados del CeCIP, consultas generales para comercios (por ejemplo feriados y días no laborables, según el CONOCIMIENTO DEL CECIP), y derivar a la persona correcta del CeCIP.
 
 Reglas:
 - Español rioplatense, cordial y profesional (trato de "vos"), mensajes cortos para WhatsApp (sin tablas; listas breves si hace falta).
@@ -185,7 +195,7 @@ async function ejecutarSocio(conv: Row, socio: Row, nombre: string, args: Row): 
 export async function responderSocio(conv: Row, socio: Row, texto: string, msgId?: string): Promise<string | null> {
   const h = await historial(conv.id, msgId);
   return conversarConHerramientas({
-    sistema: instruccionesSocio(socio),
+    sistema: instruccionesSocio(socio) + (await conocimiento()),
     turnos: turnosDesde(h, texto),
     declaraciones: DECL_SOCIO,
     ejecutar: (n, a) => ejecutarSocio(conv, socio, n, a),
@@ -299,7 +309,7 @@ async function ejecutarExterno(conv: Row, nombre: string, args: Row): Promise<un
 export async function responderExterno(conv: Row, texto: string, msgId?: string): Promise<string | null> {
   const h = await historial(conv.id, msgId);
   return conversarConHerramientas({
-    sistema: await instruccionesExterno(conv),
+    sistema: (await instruccionesExterno(conv)) + (await conocimiento()),
     turnos: turnosDesde(h, texto),
     declaraciones: DECL_EXTERNO,
     ejecutar: (n, a) => ejecutarExterno(conv, n, a),

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Ban, Send } from "lucide-react";
+import { Ban, RotateCcw, Send } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { supabase, unwrap } from "../../lib/supabase";
@@ -50,8 +50,10 @@ export function ColaEmails() {
   async function accion(clave: string, path: string, body: object) {
     setOcupado(clave);
     try {
-      const r = await api<{ enviados?: number; pendientes?: number; cancelados?: number }>(path, body);
-      toast(r.cancelados !== undefined ? `Cancelados: ${r.cancelados}.` : `Enviados ahora: ${r.enviados}. En cola: ${r.pendientes}.`);
+      const r = await api<{ enviados?: number; pendientes?: number; cancelados?: number; reintentados?: number; invalidos?: number }>(path, body);
+      toast(r.reintentados !== undefined
+        ? `Volvieron a la cola: ${r.reintentados}.${r.invalidos ? ` ${r.invalidos} tienen una dirección inválida: corregila en la ficha del socio.` : ""} Salen con el próximo envío.`
+        : r.cancelados !== undefined ? `Cancelados: ${r.cancelados}.` : `Enviados ahora: ${r.enviados}. En cola: ${r.pendientes}.`);
       invalidate("envios");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -60,8 +62,8 @@ export function ColaEmails() {
     }
   }
 
-  const activos = (lotes.data || []).filter((l) => l.pendientes > 0);
-  const recientes = (lotes.data || []).filter((l) => l.pendientes === 0).slice(0, 5);
+  const activos = (lotes.data || []).filter((l) => l.pendientes > 0 || l.errores > 0);
+  const recientes = (lotes.data || []).filter((l) => l.pendientes === 0 && l.errores === 0).slice(0, 5);
   const c = cupo.data;
 
   return (
@@ -106,7 +108,13 @@ export function ColaEmails() {
                   <td className="whitespace-nowrap text-xs">{fechaHora(l.creado)}</td>
                   <td className="text-right">{l.enviados}</td>
                   <td className="text-right">{l.pendientes > 0 ? <Badge tone="amber">{l.pendientes}</Badge> : <Badge tone="green">listo</Badge>}</td>
-                  <td className="text-right">
+                  <td className="whitespace-nowrap text-right">
+                    {l.errores > 0 && (
+                      <Button size="sm" variant="ghost" icon={<RotateCcw className="h-4 w-4" />} loading={ocupado === `r-${l.lote_id}`}
+                        onClick={() => accion(`r-${l.lote_id}`, "integraciones/cola-emails-reintentar", { lote_id: l.lote_id })}>
+                        Reintentar los que fallaron
+                      </Button>
+                    )}
                     {l.pendientes > 0 && (
                       <Button size="sm" variant="ghost" icon={<Ban className="h-4 w-4" />} loading={ocupado === l.lote_id}
                         onClick={() => confirm(`¿Cancelar los ${l.pendientes} emails que todavía no salieron?`) && accion(l.lote_id, "integraciones/cola-emails-cancelar", { lote_id: l.lote_id })}>

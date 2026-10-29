@@ -43,6 +43,10 @@ export function SocioForm({ socio, onClose, onSaved }: { socio: Socio | "nuevo" 
     // (los CUIT importados del Excel se aceptan como están; se valida solo si se cambia)
     const cuitOriginal = socio && socio !== "nuevo" ? socio.cuit : null;
     if (f.cuit && f.cuit !== cuitOriginal && !cuitValido(f.cuit)) return setError("El CUIT no es válido (revisá los 11 dígitos).");
+    // las direcciones de email no admiten tildes, ñ ni espacios (Resend rechaza el envío)
+    const malos = [f.email, ...String(f.emails_extra || "").split(/[,;]+/)].map((e) => (e || "").trim())
+      .filter((e) => e && !/^[!-~]+@[!-~]+\.[!-~]+$/.test(e));
+    if (malos.length) return setError(`Email inválido: ${malos.join(", ")}. Revisá que no tenga tildes, ñ ni espacios (por ejemplo "administracion@…", sin tilde).`);
     setSaving(true);
     setError(null);
 
