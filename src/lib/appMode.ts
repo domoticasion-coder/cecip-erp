@@ -1,6 +1,7 @@
 /**
  * Un mismo deploy sirve dos aplicaciones según el subdominio:
  *   erp.centrocomercialparana.com.ar          -> ERP administrativo
+ *     (y en ese dominio /portal/... sigue siendo el Portal de socios)
  *   portalsocios.centrocomercialparana.com.ar -> Portal de socios
  * En local (o en previews de Vercel) se usan rutas: /erp/... y /portal/...
  */
@@ -13,11 +14,14 @@ export interface AppMode {
 
 export function detectAppMode(): AppMode {
   const host = window.location.hostname.toLowerCase();
-  if (host.startsWith("portalsocios.")) return { app: "portal", basename: "" };
-  if (host.startsWith("erp.")) return { app: "erp", basename: "" };
-
   const path = window.location.pathname;
-  if (path === "/portal" || path.startsWith("/portal/")) return { app: "portal", basename: "/portal" };
+  const bajo = (base: string) => path === base || path.startsWith(`${base}/`);
+  if (host.startsWith("portalsocios.")) return { app: "portal", basename: "" };
+  // En cualquier dominio (también erp.…) /portal/... es el Portal: así funcionan los links de
+  // inscripción, Mercado Pago y "Login Socios" de la web aunque apunten al dominio del ERP
+  if (bajo("/portal")) return { app: "portal", basename: "/portal" };
+  // erp.centrocomercialparana.com.ar: el ERP en la raíz, y también en /erp/... (links viejos y avisos)
+  if (host.startsWith("erp.")) return { app: "erp", basename: bajo("/erp") ? "/erp" : "" };
   return { app: "erp", basename: "/erp" };
 }
 
