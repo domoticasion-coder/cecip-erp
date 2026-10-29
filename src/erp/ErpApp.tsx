@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Users, Receipt, AlertCircle, Wallet, Megaphone, CalendarDays, Sparkles,
   UserCheck, Settings, LogOut, Menu, X, LayoutTemplate, Send, Building2, FileText, GraduationCap, Bot,
-  Inbox, Smartphone,
+  Inbox, Smartphone, Briefcase,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -32,13 +32,14 @@ import Facturacion from "./pages/Facturacion";
 import Capacitaciones from "./pages/Capacitaciones";
 import Copiloto from "./pages/Copiloto";
 import Bandeja from "./pages/Bandeja";
+import BolsaEmpleo from "./pages/BolsaEmpleo";
 import { MiWhatsappModal } from "./components/Canales";
 
 interface NavItem {
   to: Seccion; // quién la ve: ver shared/roles.ts
   label: string;
   icon: typeof Users;
-  badge?: "accesos" | "comercia" | "facturas" | "bandeja";
+  badge?: "accesos" | "comercia" | "facturas" | "bandeja" | "bolsa";
   ia?: boolean; // se marca como novedad
 }
 
@@ -52,6 +53,7 @@ const NAV: NavItem[] = [
   { to: "/tesoreria", label: "Tesorería y banco", icon: Wallet },
   { to: "/facturacion", label: "Facturación", icon: FileText, badge: "facturas" },
   { to: "/alquileres", label: "Alquileres", icon: Building2 },
+  { to: "/bolsa", label: "Bolsa de empleo", icon: Briefcase, badge: "bolsa" },
   { to: "/comunicacion", label: "Comunicación", icon: Megaphone },
   { to: "/eventos", label: "Eventos", icon: CalendarDays },
   { to: "/capacitaciones", label: "Capacitaciones", icon: GraduationCap },
@@ -110,13 +112,14 @@ function Shell() {
   const { data: badges } = useQuery({
     queryKey: ["badges"],
     queryFn: async () => {
-      const [a, c, f, b] = await Promise.all([
+      const [a, c, f, b, cv] = await Promise.all([
         supabase.from("socio_usuarios").select("user_id", { count: "exact", head: true }).eq("estado", "pendiente"),
         supabase.from("comercia_solicitudes").select("id", { count: "exact", head: true }).eq("estado", "nueva"),
         supabase.from("facturas").select("id", { count: "exact", head: true }).eq("estado", "error"),
         supabase.from("conversaciones").select("id", { count: "exact", head: true }).gt("no_leidos", 0).is("staff_user_id", null),
+        supabase.from("bolsa_cvs").select("id", { count: "exact", head: true }).eq("estado", "nuevo"),
       ]);
-      return { accesos: a.count || 0, comercia: c.count || 0, facturas: f.count || 0, bandeja: b.count || 0 };
+      return { accesos: a.count || 0, comercia: c.count || 0, facturas: f.count || 0, bandeja: b.count || 0, bolsa: cv.count || 0 };
     },
     refetchInterval: 60_000,
   });
@@ -220,6 +223,7 @@ function Shell() {
               {ve("/") && <Route path="/" element={<Inicio />} />}
               {ve("/copiloto") && <Route path="/copiloto" element={<Copiloto />} />}
               {ve("/bandeja") && <Route path="/bandeja" element={<Bandeja />} />}
+              {ve("/bolsa") && <Route path="/bolsa" element={<BolsaEmpleo />} />}
               {ve("/socios") && <Route path="/socios" element={<Socios />} />}
               {ve("/socios") && <Route path="/socios/:id" element={<SocioDetalle />} />}
               {ve("/cuotas") && <Route path="/cuotas" element={<Cuotas />} />}

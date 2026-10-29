@@ -90,6 +90,7 @@ function Comunicados() {
                     <span className="font-medium">{c.titulo}</span>
                     {c.publicado ? <Badge tone="green">Publicado</Badge> : <Badge>Borrador</Badge>}
                     {c.destacado && <Badge tone="amber">Destacado</Badge>}
+                    {c.publicado && c.publicar_web && <Badge tone="blue">En la web</Badge>}
                   </div>
                   <div className="mt-0.5 flex gap-3">
                     {c.imagen_url && <img src={c.imagen_url} alt="" className="h-14 w-20 shrink-0 rounded object-cover" />}
@@ -131,6 +132,7 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
   const [cuerpo, setCuerpo] = useState("");
   const [publicado, setPublicado] = useState(true);
   const [destacado, setDestacado] = useState(false);
+  const [web, setWeb] = useState(false);
   const [imagen, setImagen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -139,7 +141,7 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
     if (!value) return;
     setError(null);
     if (value === "nuevo") { setTitulo(""); setCuerpo(""); setPublicado(true); setDestacado(false); setImagen(null); }
-    else { setTitulo(value.titulo); setCuerpo(value.cuerpo); setPublicado(value.publicado); setDestacado(value.destacado); setImagen(value.imagen_url); }
+    else { setTitulo(value.titulo); setCuerpo(value.cuerpo); setPublicado(value.publicado); setDestacado(value.destacado); setImagen(value.imagen_url); setWeb(!!value.publicar_web); }
   }, [value]);
 
   async function guardar() {
@@ -147,7 +149,7 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
     setSaving(true);
     const prev = value !== "nuevo" ? value : null;
     const payload = {
-      titulo: titulo.trim(), cuerpo: cuerpo.trim(), publicado, destacado, imagen_url: imagen,
+      titulo: titulo.trim(), cuerpo: cuerpo.trim(), publicado, destacado, imagen_url: imagen, publicar_web: web,
       fecha_publicacion: publicado ? prev?.fecha_publicacion || new Date().toISOString() : null,
     };
     const res = prev
@@ -177,6 +179,7 @@ function ComunicadoForm({ value, onClose }: { value: Comunicado | "nuevo" | null
         <div className="flex gap-6">
           <Checkbox checked={publicado} onChange={setPublicado} label="Publicado en el portal" />
           <Checkbox checked={destacado} onChange={setDestacado} label="Destacado (aparece primero)" />
+          <Checkbox checked={web} onChange={setWeb} label="Publicar también en la web del CeCIP (sección Noticias de centrocomercialparana.com.ar)" />
         </div>
         <ErrorBox error={error} />
       </div>

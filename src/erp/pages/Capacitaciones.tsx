@@ -222,7 +222,7 @@ const cursoVacio = {
   titulo: "", descripcion: "", docente_id: "", modalidad: "presencial" as Evento["modalidad"], lugar: "Sede CeCIP", link: "",
   fecha: hoyISO(), dias: [] as number[], hora_inicio: "18:00", hora_fin: "20:00", cantidad_clases: "8", cupo: "",
   costo: "0", precio_no_socio: "", honorario_tipo: "por_clase" as HonorarioTipo, honorario_monto: "0",
-  publicado: true, inscripcion_abierta: true, formulario_publico: true, facturar: true, cancelado: false,
+  publicado: true, inscripcion_abierta: true, formulario_publico: true, facturar: true, cancelado: false, publicar_web: true,
   imagen_url: null as string | null, preguntas: [] as PreguntaFormulario[],
 };
 
@@ -247,7 +247,7 @@ function CursoForm({ value, onClose }: { value: Curso | "nuevo" | null; onClose:
       cantidad_clases: String(value.cantidad_clases || 1), cupo: value.cupo ? String(value.cupo) : "", costo: String(value.costo),
       precio_no_socio: value.precio_no_socio !== null ? String(value.precio_no_socio) : "", honorario_tipo: value.honorario_tipo,
       honorario_monto: String(value.honorario_monto), publicado: value.publicado, inscripcion_abierta: value.inscripcion_abierta,
-      formulario_publico: value.formulario_publico, facturar: value.facturar, cancelado: value.cancelado, imagen_url: value.imagen_url,
+      formulario_publico: value.formulario_publico, facturar: value.facturar, cancelado: value.cancelado, imagen_url: value.imagen_url, publicar_web: value.publicar_web ?? true,
       preguntas: value.preguntas || [],
     });
   }, [value]);
@@ -273,7 +273,7 @@ function CursoForm({ value, onClose }: { value: Curso | "nuevo" | null; onClose:
       cantidad_clases: Number(f.cantidad_clases) || 1, cupo: f.cupo ? Number(f.cupo) : null, costo: num(f.costo),
       precio_no_socio: f.precio_no_socio.trim() ? num(f.precio_no_socio) : null,
       honorario_tipo: f.honorario_tipo, honorario_monto: num(f.honorario_monto),
-      publicado: f.publicado, inscripcion_abierta: f.inscripcion_abierta, formulario_publico: f.formulario_publico,
+      publicado: f.publicado, inscripcion_abierta: f.inscripcion_abierta, formulario_publico: f.formulario_publico, publicar_web: f.publicar_web,
       facturar: f.facturar, cancelado: f.cancelado, imagen_url: f.imagen_url,
       preguntas: f.preguntas.filter((p) => p.etiqueta.trim()).map((p) => ({ ...p, etiqueta: p.etiqueta.trim() })),
     };
@@ -366,6 +366,7 @@ function CursoForm({ value, onClose }: { value: Curso | "nuevo" | null; onClose:
 
           <div className="space-y-2 rounded-lg border border-slate-200 p-3">
             <Checkbox checked={f.publicado} onChange={(v) => set("publicado", v)} label="Publicada en el portal de socios" />
+            {f.publicado && <Checkbox checked={f.publicar_web} onChange={(v) => set("publicar_web", v)} label="Mostrar también en la web del CeCIP" />}
             <Checkbox checked={f.inscripcion_abierta} onChange={(v) => set("inscripcion_abierta", v)} label="Inscripción abierta" />
             <Checkbox checked={f.formulario_publico} onChange={(v) => set("formulario_publico", v)} label="Formulario público (no socios)" />
             {value !== "nuevo" && <Checkbox checked={f.cancelado} onChange={(v) => set("cancelado", v)} label="Capacitación cancelada" />}

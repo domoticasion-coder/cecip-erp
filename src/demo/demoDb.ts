@@ -17,6 +17,7 @@ import valores013 from "../../supabase/migrations/013_valores_anteriores_y_reten
 import canales014 from "../../supabase/migrations/014_canales.sql?raw";
 import whatsapp015 from "../../supabase/migrations/015_whatsapp_socios.sql?raw";
 import feriados016 from "../../supabase/migrations/016_conocimiento_feriados.sql?raw";
+import web017 from "../../supabase/migrations/017_web_y_bolsa.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
@@ -388,9 +389,18 @@ begin
 end $$;
 `;
 
+// Bolsa de empleo (migración 017): CV de ejemplo como los que llegan desde la web
+const SEED_017 = `
+insert into bolsa_cvs (nombre, email, telefono, localidad, area, tipo_profesional, comentarios, archivo_nombre, archivo_tamano, estado, created_at) values
+  ('Micaela Ríos', 'micaela.rios@mail.demo', '343 456-7788', 'Paraná', 'Ventas y Comercial', 'Estudiante / Junior', 'Estudiante de Administración, experiencia en atención al público y caja. Disponibilidad full time.', 'CV-Micaela-Rios.pdf', '0.3 MB', 'aprobado', now() - interval '3 days'),
+  ('Julián Ferreyra', 'julian.ferreyra@mail.demo', '343 512-9900', 'Oro Verde', 'Tecnología y Sistemas', 'Técnico Especialista', 'Técnico en redes y soporte. Manejo de sistemas de facturación y puntos de venta.', 'CV-Julian-Ferreyra.pdf', '0.5 MB', 'nuevo', now() - interval '6 hours'),
+  ('Rocío Benedetti', 'rocio.benedetti@mail.demo', '343 433-1020', 'Paraná', 'Administración', 'Profesional Senior', 'Contadora con 8 años en estudios contables y pymes comerciales.', 'CV-Rocio-Benedetti.pdf', '0.4 MB', 'nuevo', now() - interval '1 day');
+update comunicados set publicar_web = true where publicado;
+`;
+
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v22";
+const IDB_NAME = "cecip-demo-v23";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -422,6 +432,8 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(SEED_014);
         await db.exec(whatsapp015);
         await db.exec(feriados016);
+        await db.exec(web017);
+        await db.exec(SEED_017);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Home, LogOut, Megaphone, Menu, Receipt, Sparkles, Store, Building2, X, Clock, XCircle } from "lucide-react";
+import { Briefcase, CalendarDays, Home, LogOut, Megaphone, Menu, Receipt, Sparkles, Store, Building2, X, Clock, XCircle } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase, traducirError, unwrap } from "../lib/supabase";
 import { appUrl } from "../lib/appMode";
@@ -15,6 +15,7 @@ import Inicio from "./pages/Inicio";
 import MisCuotas from "./pages/MisCuotas";
 import Comunicados from "./pages/Comunicados";
 import Eventos from "./pages/Eventos";
+import BolsaEmpleo from "./pages/BolsaEmpleo";
 import Comercia from "./pages/Comercia";
 import MiEmpresa from "./pages/MiEmpresa";
 import { BotonCopiloto } from "./components/Copilot";
@@ -154,6 +155,7 @@ const NAV = [
   { to: "/comunicados", label: "Comunicados", icon: Megaphone },
   { to: "/eventos", label: "Eventos y capacitaciones", icon: CalendarDays },
   { to: "/comercia", label: "ComercIA", icon: Store },
+  { to: "/bolsa", label: "Bolsa de empleo", icon: Briefcase },
   { to: "/empresa", label: "Mi empresa", icon: Building2 },
 ];
 
@@ -211,6 +213,7 @@ function Shell({ socioId }: { socioId: string }) {
           <Route path="/comunicados" element={<Comunicados />} />
           <Route path="/eventos" element={<Eventos socioId={socioId} />} />
           <Route path="/comercia" element={<Comercia socioId={socioId} socio={socio} />} />
+          <Route path="/bolsa" element={<BolsaEmpleo socioId={socioId} />} />
           <Route path="/empresa" element={<MiEmpresa socio={socio} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

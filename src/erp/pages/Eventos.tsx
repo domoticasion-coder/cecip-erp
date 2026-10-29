@@ -111,7 +111,7 @@ function EventoForm({ value, onClose }: { value: Evento | "nuevo" | null; onClos
   const toast = useToast();
   const vacio = {
     titulo: "", descripcion: "", tipo: "evento" as Evento["tipo"], fecha_inicio: `${hoyISO()}T18:00`, fecha_fin: "",
-    lugar: "Sede CeCIP", modalidad: "presencial" as Evento["modalidad"], link: "", cupo: "", costo: "0", publicado: true, inscripcion_abierta: true,
+    lugar: "Sede CeCIP", modalidad: "presencial" as Evento["modalidad"], link: "", cupo: "", costo: "0", publicado: true, inscripcion_abierta: true, publicar_web: true,
     imagen_url: null as string | null, formulario_publico: false, preguntas: [] as PreguntaFormulario[],
   };
   const [f, setF] = useState(vacio);
@@ -125,7 +125,7 @@ function EventoForm({ value, onClose }: { value: Evento | "nuevo" | null; onClos
     else setF({
       titulo: value.titulo, descripcion: value.descripcion || "", tipo: value.tipo, fecha_inicio: toLocalInput(value.fecha_inicio),
       fecha_fin: toLocalInput(value.fecha_fin), lugar: value.lugar || "", modalidad: value.modalidad, link: value.link || "",
-      cupo: value.cupo?.toString() || "", costo: String(value.costo), publicado: value.publicado, inscripcion_abierta: value.inscripcion_abierta,
+      cupo: value.cupo?.toString() || "", costo: String(value.costo), publicado: value.publicado, inscripcion_abierta: value.inscripcion_abierta, publicar_web: value.publicar_web ?? true,
       imagen_url: value.imagen_url, formulario_publico: value.formulario_publico, preguntas: value.preguntas || [],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,7 +139,7 @@ function EventoForm({ value, onClose }: { value: Evento | "nuevo" | null; onClos
       fecha_inicio: new Date(f.fecha_inicio).toISOString(), fecha_fin: f.fecha_fin ? new Date(f.fecha_fin).toISOString() : null,
       lugar: f.lugar.trim() || null, modalidad: f.modalidad, link: f.link.trim() || null,
       cupo: f.cupo ? Number(f.cupo) : null, costo: Number(f.costo.replace(",", ".")) || 0,
-      publicado: f.publicado, inscripcion_abierta: f.inscripcion_abierta, imagen_url: f.imagen_url,
+      publicado: f.publicado, inscripcion_abierta: f.inscripcion_abierta, imagen_url: f.imagen_url, publicar_web: f.publicar_web,
       formulario_publico: f.formulario_publico, preguntas: f.preguntas.filter((p) => p.etiqueta.trim()).map((p) => ({ ...p, etiqueta: p.etiqueta.trim() })),
     };
     if (f.formulario_publico && f.preguntas.some((p) => p.tipo === "opciones" && p.etiqueta.trim() && !(p.opciones || []).length)) {
@@ -180,6 +180,7 @@ function EventoForm({ value, onClose }: { value: Evento | "nuevo" | null; onClos
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 sm:col-span-2">
           <Checkbox checked={f.publicado} onChange={(v) => setF({ ...f, publicado: v })} label="Publicado en el portal de socios" />
+          {f.publicado && <Checkbox checked={f.publicar_web} onChange={(v) => setF({ ...f, publicar_web: v })} label="Mostrar también en la agenda de la web del CeCIP" />}
           <Checkbox checked={f.inscripcion_abierta} onChange={(v) => setF({ ...f, inscripcion_abierta: v })} label="Inscripción abierta" />
         </div>
         <div className="rounded-lg border border-brand-100 bg-brand-50 p-3 sm:col-span-2">

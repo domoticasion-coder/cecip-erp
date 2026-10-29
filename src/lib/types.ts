@@ -197,6 +197,8 @@ export interface Comunicado {
   id: string;
   titulo: string;
   cuerpo: string;
+  /** También sale en la sección Noticias de la web del CeCIP */
+  publicar_web?: boolean;
   publicado: boolean;
   destacado: boolean;
   imagen_url: string | null;
@@ -221,6 +223,8 @@ export interface Evento {
   id: string;
   titulo: string;
   descripcion: string | null;
+  /** Si está publicado, también aparece en la agenda de la web del CeCIP */
+  publicar_web?: boolean;
   tipo: "evento" | "capacitacion";
   fecha_inicio: string;
   fecha_fin: string | null;
