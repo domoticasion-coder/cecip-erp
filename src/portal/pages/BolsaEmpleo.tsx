@@ -6,6 +6,7 @@ import { fecha } from "../../lib/format";
 import { Badge, Button, Card, Empty, Loading, Select, useToast } from "../../components/ui";
 import { useInvalidate } from "../../erp/data";
 import { abrirCv, type BolsaCv } from "../../erp/pages/BolsaEmpleo";
+import { registrarActividad } from "../actividad";
 
 /**
  * Bolsa de empleo para los socios: currículums que la gente cargó en la web del CeCIP y que el
@@ -32,6 +33,7 @@ export default function BolsaEmpleo({ socioId }: { socioId: string }) {
       : await supabase.from("bolsa_interes").delete().eq("cv_id", cv.id).eq("socio_id", socioId);
     if (error) return toast(traducirError(error.message), "error");
     toast(marcar ? "Le avisamos al CeCIP que te interesa este perfil." : "Listo.");
+    if (marcar) registrarActividad("interes", "bolsa", { id: cv.id, titulo: cv.area || "CV" });
     invalidate("bolsa");
   }
 

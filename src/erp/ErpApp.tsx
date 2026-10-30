@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Users, Receipt, AlertCircle, Wallet, Megaphone, CalendarDays, Sparkles,
   UserCheck, Settings, LogOut, Menu, X, LayoutTemplate, Send, Building2, FileText, GraduationCap, Bot,
-  Inbox, Smartphone, Briefcase,
+  Inbox, Smartphone, Briefcase, Handshake, Activity,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -33,13 +33,15 @@ import Capacitaciones from "./pages/Capacitaciones";
 import Copiloto from "./pages/Copiloto";
 import Bandeja from "./pages/Bandeja";
 import BolsaEmpleo from "./pages/BolsaEmpleo";
+import Convenios from "./pages/Convenios";
+import ActividadPortal from "./pages/ActividadPortal";
 import { MiWhatsappModal } from "./components/Canales";
 
 interface NavItem {
   to: Seccion; // quién la ve: ver shared/roles.ts
   label: string;
   icon: typeof Users;
-  badge?: "accesos" | "comercia" | "facturas" | "bandeja" | "bolsa";
+  badge?: "accesos" | "comercia" | "facturas" | "bandeja" | "bolsa" | "sugerencias";
   ia?: boolean; // se marca como novedad
 }
 
@@ -57,6 +59,8 @@ const NAV: NavItem[] = [
   { to: "/comunicacion", label: "Comunicación", icon: Megaphone },
   { to: "/eventos", label: "Eventos", icon: CalendarDays },
   { to: "/capacitaciones", label: "Capacitaciones", icon: GraduationCap },
+  { to: "/convenios", label: "Convenios y promociones", icon: Handshake },
+  { to: "/actividad", label: "Actividad del portal", icon: Activity, badge: "sugerencias" },
   { to: "/comercia", label: "ComercIA", icon: Sparkles, badge: "comercia" },
   { to: "/contenido", label: "Contenido del portal", icon: LayoutTemplate },
   { to: "/difusion", label: "Difusión ComercIA", icon: Send },
@@ -112,14 +116,15 @@ function Shell() {
   const { data: badges } = useQuery({
     queryKey: ["badges"],
     queryFn: async () => {
-      const [a, c, f, b, cv] = await Promise.all([
+      const [a, c, f, b, cv, sg] = await Promise.all([
         supabase.from("socio_usuarios").select("user_id", { count: "exact", head: true }).eq("estado", "pendiente"),
         supabase.from("comercia_solicitudes").select("id", { count: "exact", head: true }).eq("estado", "nueva"),
         supabase.from("facturas").select("id", { count: "exact", head: true }).eq("estado", "error"),
         supabase.from("conversaciones").select("id", { count: "exact", head: true }).gt("no_leidos", 0).is("staff_user_id", null),
         supabase.from("bolsa_cvs").select("id", { count: "exact", head: true }).eq("estado", "nuevo"),
+        supabase.from("sugerencias").select("id", { count: "exact", head: true }).eq("estado", "nueva"),
       ]);
-      return { accesos: a.count || 0, comercia: c.count || 0, facturas: f.count || 0, bandeja: b.count || 0, bolsa: cv.count || 0 };
+      return { accesos: a.count || 0, comercia: c.count || 0, facturas: f.count || 0, bandeja: b.count || 0, bolsa: cv.count || 0, sugerencias: sg.count || 0 };
     },
     refetchInterval: 60_000,
   });
@@ -234,6 +239,8 @@ function Shell() {
               {ve("/comunicacion") && <Route path="/comunicacion" element={<Comunicacion />} />}
               {ve("/eventos") && <Route path="/eventos" element={<Eventos />} />}
               {ve("/capacitaciones") && <Route path="/capacitaciones" element={<Capacitaciones />} />}
+              {ve("/convenios") && <Route path="/convenios" element={<Convenios />} />}
+              {ve("/actividad") && <Route path="/actividad" element={<ActividadPortal />} />}
               {ve("/comercia") && <Route path="/comercia" element={<Comercia />} />}
               {ve("/contenido") && <Route path="/contenido" element={<Contenido />} />}
               {ve("/difusion") && <Route path="/difusion" element={<DifusionComercia />} />}

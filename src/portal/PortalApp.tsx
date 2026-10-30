@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase, CalendarDays, Home, LogOut, Megaphone, Menu, Receipt, Sparkles, Store, Building2, X, Clock, XCircle } from "lucide-react";
+import { Briefcase, CalendarDays, Home, LogOut, Megaphone, Menu, Receipt, Sparkles, Store, Building2, X, Clock, XCircle, Handshake, Lightbulb } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase, traducirError, unwrap } from "../lib/supabase";
 import { appUrl } from "../lib/appMode";
@@ -21,6 +21,9 @@ import MiEmpresa from "./pages/MiEmpresa";
 import { BotonCopiloto } from "./components/Copilot";
 import Copiloto from "./pages/Copiloto";
 import InscripcionPublica from "./pages/InscripcionPublica";
+import Convenios from "./pages/Convenios";
+import Sugerencias from "./pages/Sugerencias";
+import { registrarActividad, seccionDeRuta } from "./actividad";
 
 export default function PortalApp() {
   const { session, socioUsuario, loading, recovery, signOut } = useAuth();
@@ -154,6 +157,7 @@ const NAV = [
   { to: "/cuotas", label: "Mis cuotas", icon: Receipt },
   { to: "/comunicados", label: "Comunicados", icon: Megaphone },
   { to: "/eventos", label: "Eventos y capacitaciones", icon: CalendarDays },
+  { to: "/convenios", label: "Convenios y promociones", icon: Handshake },
   { to: "/comercia", label: "ComercIA", icon: Store },
   { to: "/bolsa", label: "Bolsa de empleo", icon: Briefcase },
   { to: "/empresa", label: "Mi empresa", icon: Building2 },
@@ -171,6 +175,11 @@ function Shell({ socioId }: { socioId: string }) {
 
   const esChat = location.pathname === "/copiloto";
 
+  // Cada sección que abre el socio queda registrada (ERP → Actividad del portal)
+  useEffect(() => {
+    if (!location.pathname.startsWith("/recibo/")) registrarActividad("ver", seccionDeRuta(location.pathname));
+  }, [location.pathname]);
+
   if (location.pathname.startsWith("/recibo/")) {
     return <Routes><Route path="/recibo/:id" element={<Recibo />} /></Routes>;
   }
@@ -185,6 +194,10 @@ function Shell({ socioId }: { socioId: string }) {
             <div className="text-xs text-brand-100">Portal de Socios · CeCIP Paraná</div>
           </div>
           <div className="hidden text-right text-xs text-brand-100 sm:block">{socioUsuario?.nombre}</div>
+          <NavLink to="/sugerencias" title="Mandale una sugerencia al CeCIP"
+            className={({ isActive }) => cx("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium", isActive ? "bg-amber-400 text-amber-950" : "bg-white/10 text-white hover:bg-white/20")}>
+            <Lightbulb className="h-4 w-4" /><span className="hidden md:inline">Sugerencias</span>
+          </NavLink>
           <ThemeToggle variant="sidebar" />
           <button onClick={signOut} className="hidden items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-brand-100 hover:bg-white/10 sm:flex">
             <LogOut className="h-4 w-4" /> Salir
@@ -215,6 +228,8 @@ function Shell({ socioId }: { socioId: string }) {
           <Route path="/comercia" element={<Comercia socioId={socioId} socio={socio} />} />
           <Route path="/bolsa" element={<BolsaEmpleo socioId={socioId} />} />
           <Route path="/empresa" element={<MiEmpresa socio={socio} />} />
+          <Route path="/convenios" element={<Convenios />} />
+          <Route path="/sugerencias" element={<Sugerencias socioId={socioId} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

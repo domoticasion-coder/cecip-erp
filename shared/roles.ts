@@ -22,11 +22,11 @@ export type Permiso = "tesoreria" | "atencion" | "prensa" | "comercia";
 
 export type Seccion =
   | "/" | "/copiloto" | "/socios" | "/cuotas" | "/cobranzas" | "/tesoreria" | "/facturacion" | "/alquileres"
-  | "/bandeja" | "/bolsa" | "/comunicacion" | "/eventos" | "/capacitaciones" | "/comercia" | "/contenido" | "/difusion" | "/accesos" | "/configuracion";
+  | "/bandeja" | "/bolsa" | "/comunicacion" | "/eventos" | "/capacitaciones" | "/convenios" | "/actividad" | "/comercia" | "/contenido" | "/difusion" | "/accesos" | "/configuracion";
 
 const TODAS: Seccion[] = [
   "/", "/copiloto", "/socios", "/cuotas", "/cobranzas", "/tesoreria", "/facturacion", "/alquileres",
-  "/bandeja", "/bolsa", "/comunicacion", "/eventos", "/capacitaciones", "/comercia", "/contenido", "/difusion", "/accesos", "/configuracion",
+  "/bandeja", "/bolsa", "/comunicacion", "/eventos", "/capacitaciones", "/convenios", "/actividad", "/comercia", "/contenido", "/difusion", "/accesos", "/configuracion",
 ];
 const sin = (...quitar: Seccion[]) => TODAS.filter((s) => !quitar.includes(s));
 
@@ -62,7 +62,7 @@ export const ROLES_INFO: Record<Rol, InfoRol> = {
     nombre: "Prensa y capacitación",
     descripcion: "Comunicados, emails y WhatsApp, eventos, cursos y docentes, y contenido del portal. Consulta el padrón de socios; no ve cuotas ni finanzas.",
     permisos: ["prensa"],
-    secciones: ["/", "/copiloto", "/bandeja", "/bolsa", "/socios", "/comunicacion", "/eventos", "/capacitaciones", "/contenido"],
+    secciones: ["/", "/copiloto", "/bandeja", "/bolsa", "/socios", "/comunicacion", "/eventos", "/capacitaciones", "/convenios", "/actividad", "/contenido"],
     finanzas: false,
     vigente: true,
   },
@@ -78,7 +78,7 @@ export const ROLES_INFO: Record<Rol, InfoRol> = {
     nombre: "Prosecretario",
     descripcion: "Secretaría: altas y datos de socios, accesos al portal, comunicación, eventos y capacitaciones. Consulta cuotas y morosos; no ve tesorería.",
     permisos: ["atencion", "prensa"],
-    secciones: ["/", "/copiloto", "/bandeja", "/bolsa", "/socios", "/cuotas", "/cobranzas", "/comunicacion", "/eventos", "/capacitaciones", "/comercia", "/contenido", "/accesos"],
+    secciones: ["/", "/copiloto", "/bandeja", "/bolsa", "/socios", "/cuotas", "/cobranzas", "/comunicacion", "/eventos", "/capacitaciones", "/convenios", "/actividad", "/comercia", "/contenido", "/accesos"],
     finanzas: false,
     vigente: true,
   },
@@ -86,7 +86,7 @@ export const ROLES_INFO: Record<Rol, InfoRol> = {
     nombre: "Comisión directiva",
     descripcion: "Consulta el tablero, socios, cuotas y morosos, comunicados, eventos y capacitaciones, sin modificar datos. No ve tesorería ni facturación.",
     permisos: [],
-    secciones: ["/", "/copiloto", "/socios", "/cuotas", "/cobranzas", "/comunicacion", "/eventos", "/capacitaciones", "/comercia"],
+    secciones: ["/", "/copiloto", "/socios", "/cuotas", "/cobranzas", "/comunicacion", "/eventos", "/capacitaciones", "/convenios", "/actividad", "/comercia"],
     finanzas: false,
     vigente: true,
   },

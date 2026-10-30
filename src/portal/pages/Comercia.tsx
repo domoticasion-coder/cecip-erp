@@ -16,6 +16,7 @@ import { Loading } from "../../components/ui";
 import { useConfigPortal } from "../data";
 import { ConvenioComercia, HeroComercia } from "../components/ComerciaConvenio";
 import { hoyISO } from "../../lib/format";
+import { registrarActividad } from "../actividad";
 
 /*
  * Sección con el formato visual de la app ComercIA Paraná (tema oscuro, azul primario).
@@ -72,6 +73,7 @@ export default function Comercia({ socioId, socio }: { socioId: string; socio?: 
 
     // Se abre primero (si no, el navegador puede bloquear la ventana)
     const abierto = abrirWhatsappFactoria(texto, cfg?.factoria_whatsapp);
+    registrarActividad("consulta", "comercia", { titulo: servicio });
     const { error } = await supabase.from("comercia_solicitudes").insert({
       socio_id: socioId,
       servicio,

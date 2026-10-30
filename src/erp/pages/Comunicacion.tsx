@@ -14,8 +14,11 @@ import { ColaEmails } from "../components/ColaEmails";
 import { WhatsappCampanas } from "../components/WhatsappCampanas";
 import { ImagenInput } from "../../components/ImagenInput";
 import { useSociosResumen } from "./Socios";
+import { NoticiasWeb } from "../components/NoticiasWeb";
+import { PortalPrensa } from "../components/PortalPrensa";
+import { GruposEmpresarios } from "../components/GruposEmpresarios";
 
-type Tab = "comunicados" | "whatsapp" | "individual" | "masivo" | "historial";
+type Tab = "comunicados" | "noticias" | "grupos" | "prensa" | "whatsapp" | "individual" | "masivo" | "historial";
 
 export default function Comunicacion() {
   const [params] = useSearchParams();
@@ -25,12 +28,15 @@ export default function Comunicacion() {
   const [tab, setTab] = useState<Tab>(() => (params.get("tab") as Tab) || "comunicados");
   return (
     <>
-      <PageHeader title="Comunicación" subtitle="Comunicados oficiales en el portal, emails y WhatsApp a socios" />
+      <PageHeader title="Comunicación" subtitle="Comunicados del portal, noticias de la web, Mujeres y Jóvenes Empresarios, prensa, emails y WhatsApp" />
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
         tabs={[
           { value: "comunicados", label: "Comunicados del portal" },
+          { value: "noticias", label: "Noticias de la web" },
+          { value: "grupos", label: "Mujeres y Jóvenes" },
+          { value: "prensa", label: "Portal de prensa" },
           ...(envia ? [
             { value: "whatsapp" as Tab, label: "WhatsApp" },
             { value: "individual" as Tab, label: "Email individual" },
@@ -40,6 +46,9 @@ export default function Comunicacion() {
         ]}
       />
       {tab === "comunicados" && <Comunicados />}
+      {tab === "noticias" && <NoticiasWeb />}
+      {tab === "grupos" && <GruposEmpresarios />}
+      {tab === "prensa" && <PortalPrensa />}
       {envia && tab === "whatsapp" && <WhatsappCampanas segmentoInicial={params.get("segmento") || undefined} />}
       {envia && tab === "individual" && <EmailIndividual />}
       {envia && tab === "masivo" && <EnvioMasivo />}

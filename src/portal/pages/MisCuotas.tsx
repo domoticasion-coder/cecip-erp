@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { fecha, pesos } from "../../lib/format";
 import { Button, Card, Empty, ErrorBox, Loading, SituacionBadge, Table } from "../../components/ui";
 import { useConfigPortal, useMisCuotas, usePagar } from "../data";
+import { registrarActividad } from "../actividad";
 
 export default function MisCuotas({ socioId }: { socioId: string }) {
   const qc = useQueryClient();
@@ -52,7 +53,7 @@ export default function MisCuotas({ socioId }: { socioId: string }) {
       {retorno === "error" && <Aviso tone="red" icon={<XCircle className="h-5 w-5" />}>El pago no se completó. Podés intentarlo de nuevo.</Aviso>}
 
       <Card title="Pendientes de pago" actions={pendientes.length > 1 && (
-        <Button size="sm" icon={<CreditCard className="h-3.5 w-3.5" />} loading={pagando === "todo"} onClick={() => pagar(undefined, "todo")}>
+        <Button size="sm" icon={<CreditCard className="h-3.5 w-3.5" />} loading={pagando === "todo"} onClick={() => { registrarActividad("pago", "cuotas", { titulo: "Pagar toda la deuda" }); pagar(undefined, "todo"); }}>
           Pagar todo ({pesos(deuda)})
         </Button>
       )}>
@@ -75,7 +76,7 @@ export default function MisCuotas({ socioId }: { socioId: string }) {
                     {c.interes > 0 && <div className="text-xs text-slate-500">incluye {pesos(c.interes)} de interés por mora</div>}
                   </td>
                   <td className="td text-right">
-                    <Button size="sm" icon={<CreditCard className="h-3.5 w-3.5" />} loading={pagando === c.id} disabled={!!pagando} onClick={() => pagar([c.id], c.id)}>Pagar</Button>
+                    <Button size="sm" icon={<CreditCard className="h-3.5 w-3.5" />} loading={pagando === c.id} disabled={!!pagando} onClick={() => { registrarActividad("pago", "cuotas", { titulo: "Pagar una cuota" }); pagar([c.id], c.id); }}>Pagar</Button>
                   </td>
                 </tr>
               ))}

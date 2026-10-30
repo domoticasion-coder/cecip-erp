@@ -272,6 +272,8 @@ const RPC_TIPO: Record<string, "scalar" | "row" | "set"> = {
   facturar_inscripcion: "scalar",
   crear_reserva: "scalar",
   cancelar_reserva: "scalar",
+  registrar_actividad_portal: "scalar",
+  web_contenido: "scalar",
 };
 
 export async function rpc(name: string, params: Record<string, unknown> = {}, who?: Identidad): Promise<Result> {
@@ -314,6 +316,12 @@ export function createDemoClient() {
           return { data: { path }, error: null };
         },
         getPublicUrl: (path: string) => ({ data: { publicUrl: imagenesDemo.get(path) || "" } }),
+        // CV y archivos privados: en la demo se abren desde la copia local
+        async createSignedUrl(path: string) {
+          const url = imagenesDemo.get(path);
+          return url ? { data: { signedUrl: url }, error: null } : { data: null, error: { message: "Archivo de ejemplo sin contenido" } };
+        },
+        async remove(paths: string[]) { paths.forEach((x) => imagenesDemo.delete(x)); return { data: [], error: null }; },
       }),
     },
     auth: {

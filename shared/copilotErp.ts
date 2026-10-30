@@ -22,7 +22,9 @@ const GUIA_ERP: [Seccion[], string][] = [
   [["/alquileres"], "Alquileres: cobros (mensuales y de reservas), pestaña \"Salones y reservas\" para alquileres temporales por día u horas (con seña, calendario y control de superposición) y \"Inmuebles y contratos\" para contratos mensuales y ajustes (ICL, IPC, porcentaje)."],
   [["/bandeja"], "Bandeja: conversaciones de WhatsApp y email con socios y contactos (la IA responde y deriva; el personal responde a mano con texto, PDF, imágenes o recibos), pipeline de contactos y comprobantes de pago recibidos para conciliar."],
   [["/bolsa"], "Bolsa de empleo: currículums que llegan desde la web del CeCIP; se descargan, se muestran a los socios (Portal) o se archivan, y se ve qué comercios se interesaron."],
-  [["/comunicacion"], "Comunicación: comunicados del portal (con imagen), email individual, email masivo (con cola de envío por cupo diario), campañas de WhatsApp con mensajes variados y espera entre envíos, historial."],
+  [["/comunicacion"], "Comunicación: comunicados del portal (con imagen), Noticias de la web (lo que sale en la sección Noticias de centrocomercialparana.com.ar), Mujeres y Jóvenes (eventos, actividades y capacitaciones de Mujeres Empresarias y Jóvenes Empresarios que se ven en sus pestañas de la web), Portal de prensa (canales y medios, importación desde Excel, copiar emails para gacetillas), email individual, email masivo (con cola de envío por cupo diario), campañas de WhatsApp con mensajes variados y espera entre envíos, historial."],
+  [["/convenios"], "Convenios y promociones: convenios vigentes y promociones para socios (beneficio, condiciones, vigencia); los vigentes los ven los socios en el Portal."],
+  [["/actividad"], "Actividad del portal: métricas de uso del Portal por los socios (secciones más usadas, lo que más abren, socios más activos), movimientos de cada socio y sugerencias de los socios para responder."],
   [["/eventos"], "Eventos: charlas y actividades, formulario público para no socios."],
   [["/capacitaciones"], "Capacitaciones: cursos (docente, días, horario, clases, precios socio/no socio, honorarios), inscriptos con datos de facturación, cobro y factura, pestañas Docentes y Pagos a docentes."],
   [["/comercia", "/contenido", "/difusion"], "ComercIA, Contenido del portal, Difusión ComercIA: convenio CeCIP + IEC + FactorIA."],
@@ -35,6 +37,7 @@ const NOMBRE_SECCION: Record<Seccion, string> = {
   "/tesoreria": "Tesorería y banco", "/facturacion": "Facturación", "/alquileres": "Alquileres", "/comunicacion": "Comunicación",
   "/eventos": "Eventos", "/capacitaciones": "Capacitaciones", "/comercia": "ComercIA", "/contenido": "Contenido del portal",
   "/difusion": "Difusión ComercIA", "/accesos": "Accesos al portal", "/configuracion": "Configuración",
+  "/convenios": "Convenios y promociones", "/actividad": "Actividad del portal",
 };
 
 /** Qué secciones del ERP habilitan cada bloque de datos del contexto (los que no figuran los reciben todos) */

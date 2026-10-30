@@ -18,6 +18,7 @@ import canales014 from "../../supabase/migrations/014_canales.sql?raw";
 import whatsapp015 from "../../supabase/migrations/015_whatsapp_socios.sql?raw";
 import feriados016 from "../../supabase/migrations/016_conocimiento_feriados.sql?raw";
 import web017 from "../../supabase/migrations/017_web_y_bolsa.sql?raw";
+import prensa018 from "../../supabase/migrations/018_prensa_noticias_convenios_actividad.sql?raw";
 
 export const DEMO_USERS = {
   admin: { id: "00000000-0000-4000-8000-0000000000a1", email: "admin@cecip.demo", nombre: "Carla Gómez", rol: "admin" },
@@ -398,9 +399,50 @@ insert into bolsa_cvs (nombre, email, telefono, localidad, area, tipo_profesiona
 update comunicados set publicar_web = true where publicado;
 `;
 
+const SEED_018 = `
+insert into prensa_medios (medio, tipo, contacto, cargo, email, telefono, localidad, temas) values
+  ('El Diario de Paraná', 'Diario', 'Redacción', 'Mesa de noticias', 'redaccion@eldiario.demo', '343 420-0000', 'Paraná', 'Economía, Ciudad'),
+  ('Uno Entre Ríos', 'Diario', 'Lucía Méndez', 'Periodista de economía', 'lmendez@uno.demo', '343 430-1111', 'Paraná', 'Economía'),
+  ('Radio LT14', 'Radio', 'Producción mañana', 'Productor', 'produccion@lt14.demo', '343 440-2222', 'Paraná', 'Actualidad'),
+  ('Canal 9 Litoral', 'TV', 'Noticiero central', 'Editor', 'noticias@canal9.demo', '343 450-3333', 'Paraná', 'Ciudad, Empresas'),
+  ('Elonce', 'Portal web', 'Redacción web', 'Editora', 'web@elonce.demo', '343 460-4444', 'Paraná', 'Ciudad');
+insert into noticias_web (titulo, bajada, cuerpo, categoria, fecha, destacado) values
+  ('El CeCIP lanzó ComercIA Inteligente', 'El programa junto al Instituto IEC acerca tecnología e IA a los comercios de Paraná.', 'El Centro Comercial e Industrial de Paraná presentó ComercIA Inteligente, un programa para que los comercios de la ciudad vendan más con herramientas digitales e inteligencia artificial.', 'Institucional', now() - interval '2 days', true),
+  ('Nuevo convenio de capacitación para socios', 'Cursos con descuento para el personal de las empresas asociadas.', 'Los socios del CeCIP acceden a cursos de atención al cliente, ventas y administración con precio preferencial.', 'Capacitación', now() - interval '6 days', false);
+insert into grupos_publicaciones (grupo, tipo, titulo, descripcion, fecha, lugar) values
+  ('mujeres', 'evento', 'Encuentro de Mujeres Empresarias', 'Networking y charla sobre liderazgo en pymes familiares.', now() + interval '10 days', 'Sede CeCIP, 25 de Mayo'),
+  ('mujeres', 'capacitacion', 'Taller de finanzas para emprendedoras', 'Costos, precios y flujo de caja para tu negocio.', now() + interval '20 days', 'Salón auditorio CeCIP'),
+  ('jovenes', 'actividad', 'Ronda de negocios de jóvenes empresarios', 'Presentá tu emprendimiento a empresas socias del CeCIP.', now() + interval '14 days', 'Sede CeCIP'),
+  ('jovenes', 'capacitacion', 'Marketing digital para emprendedores', 'Redes sociales, publicidad y ventas online.', now() + interval '25 days', 'Modalidad virtual');
+insert into convenios (tipo, titulo, empresa, rubro, descripcion, beneficio, condiciones, como_usarlo, vigencia_hasta, destacado) values
+  ('convenio', 'Seguro integral de comercio', 'Aseguradora del Litoral', 'Seguros', 'Cobertura de incendio, robo y responsabilidad civil para el local.', '20% de descuento en la prima', 'Para socios al día con la cuota.', 'Pedí la cotización mencionando que sos socio del CeCIP.', current_date + 180, true),
+  ('convenio', 'Capacitaciones IEC', 'Instituto IEC', 'Educación', 'Cursos de IA, ventas y administración para el personal.', '30% de descuento', 'Hasta 3 personas por empresa.', 'Inscribite desde Eventos y capacitaciones.', current_date + 120, false),
+  ('promocion', 'Cartelería y vinilos', 'Gráfica Paraná', 'Imprenta', 'Diseño e impresión de cartelería para vidrieras.', '15% en tu primer pedido', 'Válido hasta fin de mes.', 'Mostrá esta promoción al hacer el pedido.', current_date + 25, false);
+do $$
+declare s uuid; u uuid := '${U.socio.id}';
+  sec text[] := array['inicio','cuotas','comunicados','eventos','comercia','bolsa','convenios','empresa','copiloto'];
+begin
+  select socio_id into s from socio_usuarios where user_id = u;
+  for i in 1..60 loop
+    insert into portal_actividad (socio_id, user_id, accion, seccion, created_at)
+    values (s, u, case when i % 7 = 0 then 'descarga' when i % 5 = 0 then 'click' else 'ver' end,
+            sec[1 + (i * 7) % array_length(sec, 1)], now() - (i * interval '9 hours'));
+  end loop;
+  -- otros socios con algo de actividad (sin usuario de la demo)
+  insert into portal_actividad (socio_id, accion, seccion, created_at)
+  select x.id, 'ver', sec[1 + (n % array_length(sec, 1))], now() - (n * interval '13 hours')
+  from (select id, row_number() over (order by razon_social) as r from socios where estado = 'activo' limit 25) x,
+       generate_series(1, 6) g(n)
+  where (x.r + n) % 3 <> 0;
+  insert into sugerencias (socio_id, user_id, categoria, mensaje, created_at) values
+    (s, u, 'Capacitaciones', 'Estaría bueno tener cursos en horario nocturno para el personal de comercio.', now() - interval '2 days'),
+    (s, u, 'Portal', 'Me gustaría poder descargar todas las facturas del año juntas.', now() - interval '9 days');
+end $$;
+`;
+
 // La base se guarda en el navegador (IndexedDB) para que los cambios sobrevivan al pasar
 // del ERP al portal o al checkout. "Reiniciar demo" la borra y la vuelve a generar.
-const IDB_NAME = "cecip-demo-v23";
+const IDB_NAME = "cecip-demo-v24";
 let dbPromise: Promise<PGlite> | null = null;
 
 export function getDemoDb(): Promise<PGlite> {
@@ -434,6 +476,8 @@ export function getDemoDb(): Promise<PGlite> {
         await db.exec(feriados016);
         await db.exec(web017);
         await db.exec(SEED_017);
+        await db.exec(prensa018);
+        await db.exec(SEED_018);
       }
       await db.exec(`select set_config('request.jwt.claims', '', false); select set_config('request.jwt.claim.sub', '', false);`);
       return db;

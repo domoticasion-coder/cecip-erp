@@ -7,6 +7,7 @@ import { fechaHora, pesos } from "../../lib/format";
 import type { Evento, Inscripcion } from "../../lib/types";
 import { Badge, Button, Card, Empty, Field, Input, Loading, Modal, Tabs, useToast } from "../../components/ui";
 import { TextoConLinks } from "./Comunicados";
+import { registrarActividad } from "../actividad";
 
 export default function Eventos({ socioId }: { socioId: string }) {
   const { socioUsuario, session } = useAuth();
@@ -50,6 +51,7 @@ export default function Eventos({ socioId }: { socioId: string }) {
     setSaving(false);
     if (error) return toast(error.message.includes("duplicate") ? "Esa persona ya está inscripta." : traducirError(error.message), "error");
     toast(`¡Inscripción confirmada en "${inscribir!.titulo}"!`);
+    registrarActividad("inscripcion", "eventos", { id: inscribir!.id, titulo: inscribir!.titulo });
     setInscribir(null);
     refetch();
     refetchCupos();
