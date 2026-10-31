@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { cx } from "../../components/ui";
 import type { BloqueConvenio, PromocionComercia } from "../../../shared/comercia";
+import RespaldoIEC from "./RespaldoIEC";
 
 /** Sitio del Instituto IEC (respaldo del convenio) */
 const URL_IEC = "https://www.iec-ia.com.ar";
@@ -226,17 +227,16 @@ export function ConvenioComercia({ promociones, bloques, novedades, urlAdhesion,
                     <div className="text-lg font-black text-white">{p.titulo}</div>
                   </div>
                   {p.texto && <p className="mt-2 text-sm text-[#94a3b8]">{p.texto}</p>}
-                  {/IEC/i.test(p.titulo) && (
-                    <a href={URL_IEC} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-[#60A5FA] hover:underline">
-                      Visitá el sitio del Instituto IEC <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
+
                 </div>
               </div>
             ))}
           </div>
         </section>
       )}
+
+      {/* Respaldo del Instituto IEC, con su sitio real */}
+      <section><RespaldoIEC /></section>
 
       {/* Cómo funciona */}
       {pasos.length > 0 && (
