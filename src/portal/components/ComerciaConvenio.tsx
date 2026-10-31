@@ -6,6 +6,9 @@ import {
 import { cx } from "../../components/ui";
 import type { BloqueConvenio, PromocionComercia } from "../../../shared/comercia";
 
+/** Sitio del Instituto IEC (respaldo del convenio) */
+const URL_IEC = "https://www.iec-ia.com.ar";
+
 /*
  * Página del convenio ComercIA (CeCIP + FactorIA + IEC Services) con estética de landing:
  * pensada para que el comercio entienda en segundos qué gana y se anime a sumarse.
@@ -73,6 +76,10 @@ export function HeroComercia({ promo, onSumarme, onVerPromos }: {
               className="inline-flex items-center gap-2 rounded-2xl border border-[#334155] bg-[#0f172a]/70 px-5 py-3 text-sm font-bold text-white transition hover:bg-[#1e293b]">
               <Gift className="h-4 w-4 text-[#f472b6]" /> Ver promociones
             </button>
+            <a href={URL_IEC} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#334155] bg-[#0f172a]/70 px-5 py-3 text-sm font-bold text-white transition hover:bg-[#1e293b]">
+              Conocé el Instituto IEC <ExternalLink className="h-4 w-4 text-[#60A5FA]" />
+            </a>
           </div>
         </div>
 
@@ -219,6 +226,11 @@ export function ConvenioComercia({ promociones, bloques, novedades, urlAdhesion,
                     <div className="text-lg font-black text-white">{p.titulo}</div>
                   </div>
                   {p.texto && <p className="mt-2 text-sm text-[#94a3b8]">{p.texto}</p>}
+                  {/IEC/i.test(p.titulo) && (
+                    <a href={URL_IEC} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-[#60A5FA] hover:underline">
+                      Visitá el sitio del Instituto IEC <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
@@ -260,7 +272,10 @@ export function ConvenioComercia({ promociones, bloques, novedades, urlAdhesion,
         <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         <Rocket className="mx-auto h-10 w-10 text-white" />
         <h3 className="mt-3 text-2xl font-black text-white sm:text-3xl">Sumá tu comercio a ComercIA Inteligente</h3>
-        <p className="mx-auto mt-2 max-w-lg text-sm text-white/80">Una sola adhesión te conecta con todo el ecosistema de transformación tecnológica del Instituto IEC.</p>
+        <p className="mx-auto mt-2 max-w-lg text-sm text-white/80">
+          Una sola adhesión te conecta con todo el ecosistema de transformación tecnológica del{" "}
+          <a href={URL_IEC} target="_blank" rel="noopener noreferrer" className="font-bold text-white underline underline-offset-2">Instituto IEC</a>.
+        </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button onClick={() => onPedir("ComercIA · Quiero sumarme al convenio", "")}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#ffffff] px-5 py-3 text-sm font-black text-[#1e1b4b] shadow-xl transition hover:scale-[1.02]">
