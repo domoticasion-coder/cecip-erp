@@ -1,7 +1,8 @@
-import { ArrowUpRight, Bot, Code2, GraduationCap, Lock, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { ArrowUpRight, Bot, ChevronDown, Code2, GraduationCap, Lock, ShieldCheck } from "lucide-react";
 
 /**
- * Bloque de respaldo (Portal → ComercIA; los blancos van en style para que no los cambie el modo oscuro del Portal): quién está detrás de ComercIA (Instituto IEC), con una captura real de su sitio
+ * Bloque de respaldo discreto: una barra "Respaldado por el Instituto IEC" que al tocarla se abre y muestra (Portal → ComercIA; los blancos van en style para que no los cambie el modo oscuro del Portal): quién está detrás de ComercIA (Instituto IEC), con una captura real de su sitio
  * dentro de un marco de navegador. Textos tomados de www.iec-ia.com.ar.
  */
 const URL_IEC = "https://www.iec-ia.com.ar";
@@ -13,30 +14,37 @@ const PILARES = [
 ];
 
 export default function RespaldoIEC({ logo = "/logo-iec.webp", captura = "/iec-sitio.webp" }: { logo?: string; captura?: string }) {
+  const [abierto, setAbierto] = useState(false);
   return (
-    <div className="ri tema-fijo relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#040b1d] p-6 text-white sm:p-10">
+    <div className="ri tema-fijo relative mx-auto max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-[#040b1d] text-white transition-all duration-500">
       <style>{CSS}</style>
-      <div className="pointer-events-none absolute -left-24 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-[#00a3e0]/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-violet-600/25 blur-3xl" />
-      <div className="relative grid items-center gap-10 lg:grid-cols-[1fr_1.15fr]">
+      <button type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto}
+        className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[.04] sm:px-5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full p-1 " style={{ background: "#fff" }}>
+          <img src={logo} alt="" className="h-full w-full object-contain" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300"><ShieldCheck size={12} /> Respaldo académico y tecnológico</span>
+          <span className="block truncate text-sm font-semibold">Un proyecto respaldado por el Instituto IEC</span>
+        </span>
+        <span className="hidden text-xs font-semibold text-[#94a3b8] sm:inline">{abierto ? "Cerrar" : "Conocer más"}</span>
+        <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${abierto ? "rotate-180" : ""}`} />
+      </button>
+      <div className={`grid transition-[grid-template-rows] duration-500 ease-out ${abierto ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+      <div className={`ri-panel relative border-t border-white/10 p-5 sm:p-7 ${abierto ? "ri-abierto" : ""}`}>
+      <div className="pointer-events-none absolute -left-24 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full bg-[#00a3e0]/15 blur-3xl" />
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-violet-600/20 blur-3xl" />
+      <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_1.05fr]">
         <div>
-          <div className="flex items-center gap-4">
-            <span className="ri-logo relative grid h-16 w-16 shrink-0 place-items-center rounded-full p-1.5 shadow-[0_0_40px_rgba(0,163,224,.45)]" style={{ background: "#fff" }}>
-              <img src={logo} alt="Instituto IEC" className="h-full w-full object-contain" />
-              <span className="ri-orbita absolute -inset-2 rounded-full border border-dashed border-[#7dd3fc]/50" />
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-300">
-              <ShieldCheck size={13} /> Respaldo académico y tecnológico
-            </span>
-          </div>
-          <h3 className="font-display mt-5 text-2xl font-bold leading-tight sm:text-4xl">
+          <h3 className="font-display text-xl font-bold leading-tight sm:text-2xl">
             Detrás de ComercIA está el <span className="ri-degradado">Instituto IEC</span>
           </h3>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-[#cbd5e1] sm:text-base">
             El Instituto privado en Economía del Conocimiento de Paraná: <b className="text-white">forma, desarrolla, implementa y mide</b>.
             Capacita en robótica e inteligencia artificial e implementa Inteligencia Operativa en empresas e instituciones.
           </p>
-          <ul className="mt-6 grid gap-2.5 sm:grid-cols-3">
+          <ul className="mt-5 grid gap-2 sm:grid-cols-3">
             {PILARES.map(({ icono: Icono, etiqueta, texto }, i) => (
               <li key={etiqueta} className="ri-pilar rounded-2xl border border-white/10 bg-white/[.05] p-3.5" style={{ animationDelay: `${i * 0.12}s` }}>
                 <Icono size={18} className="text-[#7dd3fc]" />
@@ -46,7 +54,7 @@ export default function RespaldoIEC({ logo = "/logo-iec.webp", captura = "/iec-s
             ))}
           </ul>
           <a href={URL_IEC} target="_blank" rel="noopener noreferrer"
-            className="ri-cta group mt-7 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-sm font-bold transition hover:-translate-y-0.5" style={{ background: "#fff", color: "#0c2356" }}>
+            className="ri-cta group mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition hover:-translate-y-0.5" style={{ background: "#fff", color: "#0c2356" }}>
             Conocé el Instituto IEC <ArrowUpRight size={17} className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </a>
         </div>
@@ -70,6 +78,9 @@ export default function RespaldoIEC({ logo = "/logo-iec.webp", captura = "/iec-s
             </div>
           </div>
         </a>
+          </div>
+        </div>
+        </div>
       </div>
     </div>
   );
@@ -79,12 +90,15 @@ const CSS = `
 .ri-degradado { background: linear-gradient(90deg, #7dd3fc, #00a3e0 45%, #a78bfa); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .ri-orbita { animation: ri-gira 14s linear infinite; }
 @keyframes ri-gira { to { transform: rotate(360deg); } }
-.ri-navegador { transform: perspective(1400px) rotateY(-8deg) rotateX(3deg); transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.ri-navegador { transform: perspective(1400px) rotateY(-6deg) rotateX(2deg); transition: transform .6s cubic-bezier(.2,.8,.2,1); }
 .ri-navegador:hover { transform: perspective(1400px) rotateY(0) rotateX(0) translateY(-4px); }
 .ri-captura { animation: ri-paneo 16s ease-in-out infinite alternate; }
 @keyframes ri-paneo { from { transform: scale(1.02); } to { transform: scale(1.1) translate(-2%, -2%); } }
 .ri-cta { box-shadow: 0 14px 34px -14px rgba(255,255,255,.5); }
-.ri-pilar { animation: ri-sube .6s cubic-bezier(.2,.9,.3,1) both; }
+.ri-pilar { opacity: 0; }
+.ri-abierto .ri-pilar { opacity: 1; animation: ri-sube .6s cubic-bezier(.2,.9,.3,1) both; }
+.ri-panel { opacity: 0; transform: translateY(-8px); transition: opacity .5s ease .1s, transform .5s ease .1s; }
+.ri-panel.ri-abierto { opacity: 1; transform: none; }
 @keyframes ri-sube { from { opacity: 0; transform: translateY(10px); } }
 @media (max-width: 1023px) { .ri-navegador, .ri-navegador:hover { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ri *, .ri { animation: none !important; } }
