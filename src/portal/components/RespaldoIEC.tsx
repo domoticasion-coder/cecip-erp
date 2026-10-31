@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpRight, Bot, ChevronDown, Code2, GraduationCap, Lock, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Bot, ChevronDown, Code2, GraduationCap, Handshake, Lock } from "lucide-react";
 
 /**
  * Bloque de respaldo discreto: una barra "Respaldado por el Instituto IEC" que al tocarla se abre y muestra (Portal → ComercIA; los blancos van en style para que no los cambie el modo oscuro del Portal): quién está detrás de ComercIA (Instituto IEC), con una captura real de su sitio
@@ -24,8 +24,8 @@ export default function RespaldoIEC({ logo = "/logo-iec.webp", captura = "/iec-s
           <img src={logo} alt="" className="h-full w-full object-contain" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300"><ShieldCheck size={12} /> Respaldo académico y tecnológico</span>
-          <span className="block truncate text-sm font-semibold">Un proyecto respaldado por el Instituto IEC</span>
+          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300"><Handshake size={12} /> Trabajo en conjunto</span>
+          <span className="block truncate text-sm font-semibold">Un proyecto en conjunto con el Instituto IEC</span>
         </span>
         <span className="hidden text-xs font-semibold text-[#94a3b8] sm:inline">{abierto ? "Cerrar" : "Conocer más"}</span>
         <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${abierto ? "rotate-180" : ""}`} />
@@ -38,7 +38,7 @@ export default function RespaldoIEC({ logo = "/logo-iec.webp", captura = "/iec-s
       <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_1.05fr]">
         <div>
           <h3 className="font-display text-xl font-bold leading-tight sm:text-2xl">
-            Detrás de ComercIA está el <span className="ri-degradado">Instituto IEC</span>
+            ComercIA, en conjunto con el <span className="ri-degradado">Instituto IEC</span>
           </h3>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-[#cbd5e1] sm:text-base">
             El Instituto privado en Economía del Conocimiento de Paraná: <b className="text-white">forma, desarrolla, implementa y mide</b>.
